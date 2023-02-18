@@ -1,40 +1,38 @@
 type ChatEntry = { user: string; message: string };
+import { $, $new } from "./dom.ts";
 
-const chatLog = document.querySelector("#chatLog");
+const chatLog = $(HTMLDivElement, "#chatLog");
 
-const chatLogEntryTemplate = document.querySelector("#chatLogEntryTemplate");
+const chatLogList = $(HTMLUListElement, ".ChatLogList", chatLog);
+const chatLogForm = $(HTMLFormElement, ".ChatLogForm", chatLog);
 
 function appendChatEntry(message: ChatEntry) {
-  if (!(chatLogEntryTemplate instanceof HTMLTemplateElement)) {
-    throw new Error("Invalid chat log entry template");
-  }
+  const chatLogEntryEl = $new("#ChatLogEntry");
 
-  const ChatLogEntryEl = chatLogEntryTemplate.content.cloneNode(true);
-
-  if (!(ChatLogEntryEl instanceof DocumentFragment)) {
-    throw new Error("Invalid chat log entry fragment");
-  }
-
-  const chatLogEntryNameEl = ChatLogEntryEl.querySelector(".ChatLogEntryName");
-  if (!(chatLogEntryNameEl instanceof HTMLElement)) {
-    throw new Error("Invalid chat log entry name element");
-  }
+  const chatLogEntryNameEl = $(
+    HTMLSpanElement,
+    ".ChatLogEntryName",
+    chatLogEntryEl
+  );
   chatLogEntryNameEl.textContent = message.user;
 
-  const chatLogEntryMessageEl = ChatLogEntryEl.querySelector(
-    ".ChatLogEntryMessage"
+  const chatLogEntryMessageEl = $(
+    HTMLSpanElement,
+    ".ChatLogEntryMessage",
+    chatLogEntryEl
   );
-  if (!(chatLogEntryMessageEl instanceof HTMLElement)) {
-    throw new Error("Invalid chat log entry message element");
-  }
   chatLogEntryMessageEl.textContent = message.message;
 
-  if (!chatLog) {
-    throw new Error("Can't find chat log element");
-  }
-
-  chatLog.appendChild(ChatLogEntryEl);
+  chatLogList.appendChild(chatLogEntryEl);
 }
+
+const chatLogFormInput = $(HTMLInputElement, ".ChatLogFormInput");
+
+chatLogForm.addEventListener("submit", (e) => {
+  e.preventDefault();
+  const value = chatLogFormInput.value;
+  console.log(value);
+});
 
 const conversation: ChatEntry[] = [
   { user: "Test", message: "Hello" },

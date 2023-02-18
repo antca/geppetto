@@ -4,14 +4,20 @@
     <script type="module" src="/main.ts"></script>
   </head>
   <body>
-    <ul class="ChatLog" id="chatLog">
-      <template id="chatLogEntryTemplate">
-        <li class="ChatLogEntry">
-          <span class="ChatLogEntryName">Default Name</span>: 
-          <span class="ChatLogEntryMessage">Default message</span>
-        </li>
-      </template>
-    </ul>
+    <div id="chatLog" id="ChatLog">
+      <ul class="ChatLogList"></ul>
+      <form class="ChatLogForm">
+        <input class="ChatLogFormInput" type="text"></input>
+        <button class="ChatLogFormInputSubmit">Send</button>
+      </form>
+    </div>
   </body>
+
+  <template id="ChatLogEntry">
+    <li class="ChatLogEntry">
+      <span class="ChatLogEntryName">Default Name</span>: 
+      <span class="ChatLogEntryMessage">Default message</span>
+    </li>
+  </template>
 </html>
 
