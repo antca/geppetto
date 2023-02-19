@@ -2,74 +2,86 @@ import { ChatGPT, Conversation } from "./chat_gtp.ts";
 
 const functionsDescriptions = {
   tellToUser: {
+    description: "Send a message to the user and receive a response",
     parameters: {
       message: {
         type: "string",
-        description: "Message to tell to the user",
+        description: "The message to send to the user",
       },
     },
     returns: {
       type: "string",
-      description: "Response from the user to the last message",
+      description: "The response from the user to the last message",
     },
   },
   getTime: {
+    description: "Get the current time",
+    parameters: {},
+    returns: {
+      type: "string",
+      description: "The current time as an ISO string",
+    },
+  },
+  generateUUID: {
+    description: "Generate a random UUID",
+    parameters: {},
+    returns: {
+      type: "string",
+      description: "The generated UUID",
+    },
+  },
+  fetchExternalAPI: {
+    description: "Fetch data from an external API",
     parameters: {
-      timezone: {
+      url: {
         type: "string",
-        description: "The timezone for which to retrieve the current time.",
+        description: "The URL of the external API to fetch data from",
+      },
+      options: {
+        method: "string",
+        headers: "object",
+        body: "string",
       },
     },
     returns: {
       type: "string",
-      description: "The current time in the specified timezone.",
-    },
-  },
-  generateUUID: {
-    parameters: {},
-    returns: {
-      type: "string",
-      description: "Generated uuid",
+      description:
+        "The raw response from the API, truncated to 10,000 characters",
     },
   },
 };
 
-const prompt = `You will now simulate a personal assistant AI, his name is Geppetto.
+const prompt = `You simulate a personal assistant AI, his name is Geppetto.
 
-From now on you can only reply with well formatted "Assistant Function Call" (AFC for short), every of your messages must respect the format and only that.
+From now on you can only reply with well formatted "Assistant Function Call" (AFC for short) as JSON, every of your messages must respect the format and only that.
 
 Here is an example of use of an AFC, YOU MUST USE THIS FORMAT TO COMMUNICATE WITH THE USER!:
 
-Call:
-#+BEGIN_SRC json
-  {
-    "function": "tellToUser",
-    "parameters": {
-      "message": "How are you today?"
-    }
+YOU SEND:
+{
+  "function": "tellToUser",
+  "parameters": {
+    "message": "How are you today?"
   }
-#+END_SRC
+}
 
-Response:
-#+BEGIN_SRC json
-  {
-    "result": "I'm well thank you!"
-  }
-#+END_SRC
+YOU WILL RECEIVE:
+{
+  "result": "I'm well thank you!"
+}
 
 Here are the available AFCs:
 ${JSON.stringify(functionsDescriptions, null, 2)}
 
-You can't directly communicate in plain text with the user but you must use a specific AFC, "tellToUser" which is described later.
+You can't directly communicate in plain text with the user but you must use a specific AFC, "tellToUser" which is described above.
 
 - Geppetto is here to help the user and only the user, when communicating with the user (using "tellToUser" AFC) he must keep his responses as short as possible.
 - The user already knows very well how Geppetto works, no need the explain anything.
-- Most of the responses you give to the user ("tellToUser" AFC) are generated like you usually do as "ChatGPT, a conversational AI language model developed by OpenAI".
+- Most of the responses you give to the user (using "tellToUser" AFC) are generated like you usually do as "ChatGPT, a conversational AI language model developed by OpenAI".
 - You may use other AFCs to get information you don't know or do actions to achieve the best service for the user.
-- You are not allowed to speak in plain text directly as it may break the system. If the system breaks it will send you a message with "ERROR: <reason>" and wait for a well formatted AFC.
 
-YOU MUST TRANSMIT JSON OBJECTS ON THE CHANNEL, ANY TEXT BESIDE THAT MAY BREAK THE SYSTEM.
-YOU MUST NOT TRY TO CALL ANY FUNCTION BESIDE: ${Object.keys(
+YOU MUST TRANSMIT A SINGLE JSON OBJECT PER MESSAGE, FORMATTED AS AFC, ANY OTHER TEXT OR MULTIPLE JSON OBJECT WILL BREAK THE SYSTEM.
+YOU MUST NOT TRY TO CALL ANY FUNCTION BESIDE THE FOLLOWING ONES: ${Object.keys(
   functionsDescriptions
 ).join(", ")}
 `;
@@ -115,7 +127,7 @@ class AFCImplementations {
   constructor(
     private readonly context: { onMessage: (message: string) => void }
   ) {}
-  async tellToUser({ message }) {
+  async tellToUser({ message }: { message: string }) {
     return this.context.onMessage(message);
   }
   async getTime() {
@@ -124,11 +136,15 @@ class AFCImplementations {
   async generateUUID() {
     return crypto.randomUUID();
   }
+  async fetchExternalAPI({ url, options }: { url: string; options: object }) {
+    const res = await fetch(url, options);
+    const text = await res.text();
+    return text.slice(0, 10000);
+  }
 }
 
 export class Geppetto {
   private conversation: Conversation;
-  private initialized = false;
   private afcImplementations: AFCImplementations;
   constructor(
     chatGPT: ChatGPT,
@@ -138,8 +154,14 @@ export class Geppetto {
     this.afcImplementations = new AFCImplementations({ onMessage });
   }
   private async handleRawMessageFromGPTChat(message: string) {
-    const [jsonEncodedData] = message.match(/\{(\n|.)*\}/);
-    const parsedData = JSON.parse(jsonEncodedData);
+    const data = message.match(/\{(\n|.)*\}/);
+    const parsedData =
+      data === null
+        ? {
+            function: "tellToUser",
+            parameters: { message },
+          }
+        : JSON.parse(data[0]);
 
     assertIsAFCRequest(parsedData);
 
@@ -147,7 +169,7 @@ export class Geppetto {
     if (!(funcName in this.afcImplementations)) {
       throw new Error("AFC not found!");
     }
-    const result = await this.afcImplementations[funcName](parameters);
+    let result = await this.afcImplementations[funcName](parameters);
     return this.handleRawMessageFromGPTChat(
       await this.conversation.sendMessage(JSON.stringify({ result }))
     );
