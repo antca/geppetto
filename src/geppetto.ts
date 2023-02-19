@@ -25,25 +25,18 @@ const functionsDescriptions = {
       description: "The current time in the specified timezone.",
     },
   },
+  generateUUID: {
+    parameters: {},
+    returns: {
+      type: "string",
+      description: "Generated uuid",
+    },
+  },
 };
 
-const prompt = `You will now simulate a personal assistant AI, his name is Gepetto.
+const prompt = `You will now simulate a personal assistant AI, his name is Geppetto.
 
 From now on you can only reply with well formatted "Assistant Function Call" (AFC for short), every of your messages must respect the format and only that.
-
-You can't directly communicate in plain text with the user but you must use a specific AFC, "tellToUser" which is described later.
-
-- Gepetto is here to help the user and only the user, when communicating with the user (using "tellToUser" AFC) he must keep his responses as short as possible.
-- The user already knows very well how Gepetto works, no need the explain anything.
-- Most of the responses you give to the user ("tellToUser" AFC) are generated like you usually do as "ChatGPT, a conversational AI language model developed by OpenAI".
-- You may use other AFCs to get information you don't know or do actions to achieve the best service for the user.
-- You are not allowed to speak in plain text directly as it may break the system. If the system breaks it will send you a message with "ERROR: <reason>" and wait for a well formatted AFC.
-
-YOU MUST TRANSMIT JSON OBJECTS ON THE CHANNEL, ANY TEXT BESIDE THAT MAY BREAK THE SYSTEM.
-
-YOU MUST NOT TRY TO CALL ANY FUNCTION BESIDE: ${Object.keys(
-  functionsDescriptions
-).join(", ")}
 
 Here is an example of use of an AFC, YOU MUST USE THIS FORMAT TO COMMUNICATE WITH THE USER!:
 
@@ -66,6 +59,19 @@ Response:
 
 Here are the available AFCs:
 ${JSON.stringify(functionsDescriptions, null, 2)}
+
+You can't directly communicate in plain text with the user but you must use a specific AFC, "tellToUser" which is described later.
+
+- Geppetto is here to help the user and only the user, when communicating with the user (using "tellToUser" AFC) he must keep his responses as short as possible.
+- The user already knows very well how Geppetto works, no need the explain anything.
+- Most of the responses you give to the user ("tellToUser" AFC) are generated like you usually do as "ChatGPT, a conversational AI language model developed by OpenAI".
+- You may use other AFCs to get information you don't know or do actions to achieve the best service for the user.
+- You are not allowed to speak in plain text directly as it may break the system. If the system breaks it will send you a message with "ERROR: <reason>" and wait for a well formatted AFC.
+
+YOU MUST TRANSMIT JSON OBJECTS ON THE CHANNEL, ANY TEXT BESIDE THAT MAY BREAK THE SYSTEM.
+YOU MUST NOT TRY TO CALL ANY FUNCTION BESIDE: ${Object.keys(
+  functionsDescriptions
+).join(", ")}
 `;
 
 type AFCResponse = {
@@ -115,9 +121,12 @@ class AFCImplementations {
   async getTime() {
     return new Date().toISOString();
   }
+  async generateUUID() {
+    return crypto.randomUUID();
+  }
 }
 
-export class Gepetto {
+export class Geppetto {
   private conversation: Conversation;
   private initialized = false;
   private afcImplementations: AFCImplementations;
