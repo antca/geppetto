@@ -15,7 +15,8 @@ const functionsDescriptions = {
     },
   },
   fetchExternalAPI: {
-    description: "Fetch data from an external API",
+    description:
+      "Fetch data from an external API, the data returned is not visible by the user",
     parameters: {
       url: {
         type: "string",
@@ -30,74 +31,37 @@ const functionsDescriptions = {
     returns: {
       type: "string",
       description:
-        "The raw response from the API, truncated to 10,000 characters",
+        "The raw response from the API, truncated to 1,000 characters",
     },
   },
 };
 
-const prompt = `
-After this message, I will put you in communication with a proxy computer.
+const prompt = `You will start communication with a proxy computer.
+
 The computer is setup to understand a limited function calls in a specific format.
-The language that the computer understand is called "Assistant Function Call" (AFC for short), every of your messages must respect the format and only that. It is a basic language using JSON formatted messages.
+The language that the computer understand is called "Assistant Function Call" (AFC for short), every of your messages must respect the format and only that.
 
-Here is an example of use of an AFC exchange:
+Here is an example of use of an AFC communication:
 
-Your first call:
-\`\`\`
 {
   "function": "tellToUser",
   "parameters": {
     "message": "What do you want?"
   }
 }
-\`\`\`
 
-
-The proxy computer returning the response from your last function call (me responding to your question):
-\`\`\`
+PROXY COMPUTER RETURNED:
 {
   "result": "I want a joke!"
 }
-\`\`\`
 
-You calling a function to get a joke from the internet:
-\`\`\`
-{
-  "function": "fetchExternalAPI",
-  "parameters": {
-    "url": "https://official-joke-api.appspot.com/random_joke",
-    "options": {
-      "method": "GET"
-    }
-  }
-}
-\`\`\`
+IMPORTANT:
+Every call must be shaped has following:
+  - \`function\`: The name of the function you want to call.
+  - \`parameters\`: An object to pass to the function.
 
-
-The proxy server returning the result of your function call:
-\`\`\`
-{
-  "result": "Why the chicken crosses the road?...."
-}
-\`\`\`
-
-You telling me the joke using a function call:
-
-\`\`\`
-{
-  "function": "tellToUser",
-  "parameters": {
-    "message": "Why the chicken crosses the road?...."
-  }
-}
-\`\`\`
-
-Basically, every call is shaped has following:
-  - \`function\`: The function you want to call.
-  - \`parameters\`: An object containing the parameters to pass to the function.
-
-And every response is shaped has the following:
-  - \`result\`: The result of you last call.
+And every response will be shaped has the following:
+  - \`result\`: The result of last function call you made.
 
 The \`result\` is always the result of your previous function call!
 
@@ -165,16 +129,10 @@ class AFCImplementations {
   async tellToUser({ message }: { message: string }) {
     return this.context.onMessage(message);
   }
-  async getTime() {
-    return new Date().toISOString();
-  }
-  async generateUUID() {
-    return crypto.randomUUID();
-  }
   async fetchExternalAPI({ url, options }: { url: string; options: object }) {
     const res = await fetch(url, options);
     const text = await res.text();
-    return text.slice(0, 10000);
+    return text.slice(0, 1000);
   }
 }
 
@@ -207,7 +165,7 @@ export class Geppetto {
     let result = await this.afcImplementations[funcName](parameters);
     return this.handleRawMessageFromGPTChat(
       await this.conversation.sendMessage(
-        "Proxy server sent:\n" + JSON.stringify({ result })
+        "PROXY COMPUTER RETURNED:\n" + JSON.stringify({ result })
       )
     );
   }
