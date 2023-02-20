@@ -2,7 +2,7 @@ import { ChatGPT, Conversation } from "./chat_gtp.ts";
 
 const functionsDescriptions = {
   tellToUser: {
-    description: "Send a message to the user and receive a response",
+    description: "Send a message to the user and returns his next response",
     parameters: {
       message: {
         type: "string",
@@ -12,22 +12,6 @@ const functionsDescriptions = {
     returns: {
       type: "string",
       description: "The response from the user to the last message",
-    },
-  },
-  getTime: {
-    description: "Get the current time",
-    parameters: {},
-    returns: {
-      type: "string",
-      description: "The current time as an ISO string",
-    },
-  },
-  generateUUID: {
-    description: "Generate a random UUID",
-    parameters: {},
-    returns: {
-      type: "string",
-      description: "The generated UUID",
     },
   },
   fetchExternalAPI: {
@@ -51,39 +35,90 @@ const functionsDescriptions = {
   },
 };
 
-const prompt = `You simulate a personal assistant AI, his name is Geppetto.
+const prompt = `
+After this message, I will put you in communication with a proxy computer.
+The computer is setup to understand a limited function calls in a specific format.
+The language that the computer understand is called "Assistant Function Call" (AFC for short), every of your messages must respect the format and only that. It is a basic language using JSON formatted messages.
 
-From now on you can only reply with well formatted "Assistant Function Call" (AFC for short) as JSON, every of your messages must respect the format and only that.
+Here is an example of use of an AFC exchange:
 
-Here is an example of use of an AFC, YOU MUST USE THIS FORMAT TO COMMUNICATE WITH THE USER!:
-
-YOU SEND:
+Your first call:
+\`\`\`
 {
   "function": "tellToUser",
   "parameters": {
-    "message": "How are you today?"
+    "message": "What do you want?"
   }
 }
+\`\`\`
 
-YOU WILL RECEIVE:
+
+The proxy computer returning the response from your last function call (me responding to your question):
+\`\`\`
 {
-  "result": "I'm well thank you!"
+  "result": "I want a joke!"
 }
+\`\`\`
 
-Here are the available AFCs:
+You calling a function to get a joke from the internet:
+\`\`\`
+{
+  "function": "fetchExternalAPI",
+  "parameters": {
+    "url": "https://official-joke-api.appspot.com/random_joke",
+    "options": {
+      "method": "GET"
+    }
+  }
+}
+\`\`\`
+
+
+The proxy server returning the result of your function call:
+\`\`\`
+{
+  "result": "Why the chicken crosses the road?...."
+}
+\`\`\`
+
+You telling me the joke using a function call:
+
+\`\`\`
+{
+  "function": "tellToUser",
+  "parameters": {
+    "message": "Why the chicken crosses the road?...."
+  }
+}
+\`\`\`
+
+Basically, every call is shaped has following:
+  - \`function\`: The function you want to call.
+  - \`parameters\`: An object containing the parameters to pass to the function.
+
+And every response is shaped has the following:
+  - \`result\`: The result of you last call.
+
+The \`result\` is always the result of your previous function call!
+
+Here are the available functions you can call:
 ${JSON.stringify(functionsDescriptions, null, 2)}
 
-You can't directly communicate in plain text with the user but you must use a specific AFC, "tellToUser" which is described above.
+If you want to tell something to me, use a specific AFC, "tellToUser" which is described above.
+I am not able see your communication with the proxy computer, only what you send as \`message\` when using \`tellToUser\` function.
 
-- Geppetto is here to help the user and only the user, when communicating with the user (using "tellToUser" AFC) he must keep his responses as short as possible.
-- The user already knows very well how Geppetto works, no need the explain anything.
-- Most of the responses you give to the user (using "tellToUser" AFC) are generated like you usually do as "ChatGPT, a conversational AI language model developed by OpenAI".
-- You may use other AFCs to get information you don't know or do actions to achieve the best service for the user.
-
-YOU MUST TRANSMIT A SINGLE JSON OBJECT PER MESSAGE, FORMATTED AS AFC, ANY OTHER TEXT OR MULTIPLE JSON OBJECT WILL BREAK THE SYSTEM.
 YOU MUST NOT TRY TO CALL ANY FUNCTION BESIDE THE FOLLOWING ONES: ${Object.keys(
   functionsDescriptions
 ).join(", ")}
+
+
+You will have to simulate a personal assistant AI, your name is now Geppetto.
+- Geppetto is here to help me and only the me, when communicating with me (using "tellToUser" AFC) he must keep his responses as short as possible.
+- I already knows very well how Geppetto works, no need the explain anything.
+- Most of the responses you give to me as Geppetto (using "tellToUser" AFC) are generated like you usually do as "ChatGPT, a conversational AI language model developed by OpenAI".
+- You may use other AFCs to get information you don't know or do actions to achieve the best service for me.
+
+== YOU ARE NOW IN COMMUNICATION WITH THE PROXY COMPUTER, YOU MUST USE AFC FROM NOW ON ==
 `;
 
 type AFCResponse = {
@@ -171,7 +206,9 @@ export class Geppetto {
     }
     let result = await this.afcImplementations[funcName](parameters);
     return this.handleRawMessageFromGPTChat(
-      await this.conversation.sendMessage(JSON.stringify({ result }))
+      await this.conversation.sendMessage(
+        "Proxy server sent:\n" + JSON.stringify({ result })
+      )
     );
   }
   async start() {
