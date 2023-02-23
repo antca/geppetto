@@ -8,8 +8,12 @@ const cookie = new TextDecoder().decode(fileContents);
 
 const chatGPT = new ChatGPT(cookie);
 
-const geppetto = new Geppetto(chatGPT, async (message: string) => {
-  return await prompt(message);
+const geppetto = new Geppetto(chatGPT, (message: string) => {
+  const userMessage = prompt(message + "\n\n");
+  if (!userMessage) {
+    throw new Error("No message from prompt!");
+  }
+  return Promise.resolve(userMessage);
 });
 geppetto.start();
 

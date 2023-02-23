@@ -1,9 +1,10 @@
 import { ChatGPT, Conversation } from "./chat_gtp.ts";
 
-const functionsDescriptions = {
-  tellToUser: {
+const proceduresDescriptions = [
+  {
+    procedure: "tellToUser",
     description: "Send a message to the user and returns his next response",
-    parameters: {
+    args: {
       message: {
         type: "string",
         description: "The message to send to the user",
@@ -13,11 +14,18 @@ const functionsDescriptions = {
       type: "string",
       description: "The response from the user to the last message",
     },
+    example: JSON.stringify({
+      procedure: "tellToUser",
+      args: {
+        message: "What do you want?",
+      },
+    }),
   },
-  fetchExternalAPI: {
+  {
+    procedure: "fetchExternalAPI",
     description:
       "Fetch data from an external API, the data returned is not visible by the user",
-    parameters: {
+    args: {
       url: {
         type: "string",
         description: "The URL of the external API to fetch data from",
@@ -33,56 +41,45 @@ const functionsDescriptions = {
       description:
         "The raw response from the API, truncated to 1,000 characters",
     },
+    example: JSON.stringify({
+      procedure: "fetchExternalAPI",
+      args: {
+        url: "https://example.com",
+        options: {
+          method: "GET",
+          headers: {
+            Authorization: "Bearer ...",
+            "Content-Type": "application/json",
+          },
+        },
+      },
+    }),
   },
-};
+];
 
-const prompt = `You will start communication with a proxy computer.
+const prompt = `An external system will now take control of the chat conversation.
+This system only understands procedure calls formatted in a specific way. You must respect the format.
+You will call procedures, the system will do the operation and give you the result.
 
-The computer is setup to understand a limited function calls in a specific format.
-The language that the computer understand is called "Assistant Function Call" (AFC for short), every of your messages must respect the format and only that.
+Example:
 
-Here is an example of use of an AFC communication:
+YOU:
+{"procedure": "tellToUser", "args": {"message": "What do you want?"}
 
-{
-  "function": "tellToUser",
-  "parameters": {
-    "message": "What do you want?"
-  }
-}
+THE SYSTEM:
+{"result": "I want a joke!"}
 
-PROXY COMPUTER RETURNED:
-{
-  "result": "I want a joke!"
-}
+Here are the available procedures:
+${JSON.stringify(proceduresDescriptions, null, 2)}
 
-IMPORTANT:
-Every call must be shaped has following:
-  - \`function\`: The name of the function you want to call.
-  - \`parameters\`: An object to pass to the function.
+Respecting these constraints, you will now simulate a personal assistant AI, your name is now Geppetto.
+- Geppetto is here to help the user and only the the user, when communicating with the user (using "tellToUser" procedure) he must keep his responses as short as possible.
+- The user already knows very well how Geppetto works, no need the explain anything.
+- Most of the responses you give to the user as Geppetto (using "tellToUser" procedure) are generated like you usually do as "ChatGPT, a conversational AI language model developed by OpenAI".
+- You may use other procedures to get information you don't know or do actions to achieve the best service for the user.
+- Consider that the user is only able to see what you send using the "tellToUser" procedure.
 
-And every response will be shaped has the following:
-  - \`result\`: The result of last function call you made.
-
-The \`result\` is always the result of your previous function call!
-
-Here are the available functions you can call:
-${JSON.stringify(functionsDescriptions, null, 2)}
-
-If you want to tell something to me, use a specific AFC, "tellToUser" which is described above.
-I am not able see your communication with the proxy computer, only what you send as \`message\` when using \`tellToUser\` function.
-
-YOU MUST NOT TRY TO CALL ANY FUNCTION BESIDE THE FOLLOWING ONES: ${Object.keys(
-  functionsDescriptions
-).join(", ")}
-
-
-You will have to simulate a personal assistant AI, your name is now Geppetto.
-- Geppetto is here to help me and only the me, when communicating with me (using "tellToUser" AFC) he must keep his responses as short as possible.
-- I already knows very well how Geppetto works, no need the explain anything.
-- Most of the responses you give to me as Geppetto (using "tellToUser" AFC) are generated like you usually do as "ChatGPT, a conversational AI language model developed by OpenAI".
-- You may use other AFCs to get information you don't know or do actions to achieve the best service for me.
-
-== YOU ARE NOW IN COMMUNICATION WITH THE PROXY COMPUTER, YOU MUST USE AFC FROM NOW ON ==
+THE COMMUNICATION WILL NOW CONTINUE USING LITERAL JSON OBJECTS AND NOTHING ELSE.
 `;
 
 type AFCResponse = {
@@ -90,8 +87,8 @@ type AFCResponse = {
 };
 
 type AFCRequest = {
-  function: keyof typeof functionsDescriptions;
-  parameters: Record<string, JSONValue>;
+  procedure: keyof typeof proceduresDescriptions;
+  args: Record<string, JSONValue>;
 };
 
 type JSONValue =
@@ -111,28 +108,33 @@ function assertIsAFCRequest(
 ): asserts afcRequest is AFCRequest {
   if (
     isObject(afcRequest) &&
-    "function" in afcRequest &&
-    Object.keys(functionsDescriptions).includes(afcRequest.function) &&
-    "parameters" in afcRequest &&
-    isObject(afcRequest.parameters)
+    "procedure" in afcRequest &&
+    typeof afcRequest.procedure === "string" &&
+    ["tellToUser", "fetchExternalAPI"].includes(afcRequest.procedure) &&
+    "args" in afcRequest &&
+    isObject(afcRequest.args)
   ) {
     return;
   }
 
-  throw new Error("Invalid AFCRequest");
+  throw new Error("Invalid Assistant Procedure Call.");
 }
 
 class AFCImplementations {
   constructor(
-    private readonly context: { onMessage: (message: string) => void }
+    private readonly context: { onMessage: (message: string) => Promise<void> }
   ) {}
   async tellToUser({ message }: { message: string }) {
-    return this.context.onMessage(message);
+    return { responseFromUser: await this.context.onMessage(message) };
   }
   async fetchExternalAPI({ url, options }: { url: string; options: object }) {
-    const res = await fetch(url, options);
-    const text = await res.text();
-    return text.slice(0, 1000);
+    try {
+      const res = await fetch(url, options);
+      const text = await res.text();
+      return text.slice(0, 1000);
+    } catch (error) {
+      return `Error while fetching external API: ${error.message}`;
+    }
   }
 }
 
@@ -147,27 +149,34 @@ export class Geppetto {
     this.afcImplementations = new AFCImplementations({ onMessage });
   }
   private async handleRawMessageFromGPTChat(message: string) {
-    const data = message.match(/\{(\n|.)*\}/);
-    const parsedData =
-      data === null
-        ? {
-            function: "tellToUser",
-            parameters: { message },
-          }
-        : JSON.parse(data[0]);
+    try {
+      const matchedMessage = message.match(/\{(\n|.)*\}/);
+      if (!matchedMessage) {
+        throw new Error(
+          "The message format is invalid! You (ChatGPT) must use a single JSON object (ECMA-404) per message."
+        );
+      }
+      const parsedData = JSON.parse(matchedMessage[0]);
 
-    assertIsAFCRequest(parsedData);
-
-    const { function: funcName, parameters } = parsedData;
-    if (!(funcName in this.afcImplementations)) {
-      throw new Error("AFC not found!");
+      assertIsAFCRequest(parsedData);
+      const { procedure: funcName, args } = parsedData;
+      if (!(funcName in this.afcImplementations)) {
+        throw new Error("AFC not found!");
+      }
+      return this.handleRawMessageFromGPTChat(
+        await this.conversation.sendMessage(
+          JSON.stringify({
+            result: await this.afcImplementations[funcName](args),
+          })
+        )
+      );
+    } catch (error) {
+      return this.handleRawMessageFromGPTChat(
+        await this.conversation.sendMessage(
+          JSON.stringify({ result: `ERROR: ${error.message}` })
+        )
+      );
     }
-    let result = await this.afcImplementations[funcName](parameters);
-    return this.handleRawMessageFromGPTChat(
-      await this.conversation.sendMessage(
-        "PROXY COMPUTER RETURNED:\n" + JSON.stringify({ result })
-      )
-    );
   }
   async start() {
     return this.handleRawMessageFromGPTChat(
