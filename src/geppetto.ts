@@ -2,46 +2,28 @@ import { ChatGPT, Conversation } from "./chat_gtp.ts";
 
 const proceduresDescriptions = [
   {
-    procedure: "tellToUser",
-    description: "Send a message to the user and returns his next response",
+    procedure: "sendMessageToUser",
+    description: "Sends a message to the user and returns his response",
     args: {
-      message: {
-        type: "string",
-        description: "The message to send to the user",
-      },
+      message: "The message to send to the user",
     },
-    returns: {
-      type: "string",
-      description: "The response from the user to the last message",
-    },
-    example: JSON.stringify({
-      procedure: "tellToUser",
+    result: "The response from the user",
+    example: {
+      procedure: "sendMessageToUser",
       args: {
-        message: "What do you want?",
+        message: { responseFromUser: "What do you want?" },
       },
-    }),
+    },
   },
   {
     procedure: "fetchExternalAPI",
-    description:
-      "Fetch data from an external API, the data returned is not visible by the user",
+    description: "Fetch data from an external API",
     args: {
-      url: {
-        type: "string",
-        description: "The URL of the external API to fetch data from",
-      },
-      options: {
-        method: "string",
-        headers: "object",
-        body: "string",
-      },
+      url: "The URL of the external resuce to fetch",
+      options: "Object of options for the request {header, method, body}",
     },
-    returns: {
-      type: "string",
-      description:
-        "The raw response from the API, truncated to 1,000 characters",
-    },
-    example: JSON.stringify({
+    returns: "The raw response from the API, truncated to 1,000 characters",
+    example: {
       procedure: "fetchExternalAPI",
       args: {
         url: "https://example.com",
@@ -53,18 +35,19 @@ const proceduresDescriptions = [
           },
         },
       },
-    }),
+    },
   },
-];
+] as const;
 
 const prompt = `An external system will now take control of the chat conversation.
 This system only understands procedure calls formatted in a specific way. You must respect the format.
 You will call procedures, the system will do the operation and give you the result.
+You must not use any programming language beside plain JSON literals (ECMA-404).
 
 Example:
 
 YOU:
-{"procedure": "tellToUser", "args": {"message": "What do you want?"}
+{"procedure": "sendMessageToUser", "args": {"message": "What do you want?"}
 
 THE SYSTEM:
 {"result": "I want a joke!"}
@@ -73,100 +56,111 @@ Here are the available procedures:
 ${JSON.stringify(proceduresDescriptions, null, 2)}
 
 Respecting these constraints, you will now simulate a personal assistant AI, your name is now Geppetto.
-- Geppetto is here to help the user and only the the user, when communicating with the user (using "tellToUser" procedure) he must keep his responses as short as possible.
+- Geppetto is here to help the user and only the the user, when communicating with the user (using "sendMessageToUser" procedure) he must keep his responses as short as possible.
 - The user already knows very well how Geppetto works, no need the explain anything.
-- Most of the responses you give to the user as Geppetto (using "tellToUser" procedure) are generated like you usually do as "ChatGPT, a conversational AI language model developed by OpenAI".
+- Most of the responses you give to the user as Geppetto (using "sendMessageToUser" procedure) are generated like you usually do as "ChatGPT, a conversational AI language model developed by OpenAI".
 - You may use other procedures to get information you don't know or do actions to achieve the best service for the user.
-- Consider that the user is only able to see what you send using the "tellToUser" procedure.
+- Consider that the user is only able to see what you send using the "sendMessageToUser" procedure.
 
-THE COMMUNICATION WILL NOW CONTINUE USING LITERAL JSON OBJECTS AND NOTHING ELSE.
+YOU MUST IN ALL CIRCUMSTANCE PUT ONE SINGLE JSON OBJECT LITERAL PER CHAT MESSAGE, AND NOTHING ELSE.
 `;
 
-type AFCResponse = {
-  result: string;
+type JCFContext = { onMessage: (message: string) => Promise<string> };
+
+type JCFs = {
+  sendMessageToUser: { message: string };
+  fetchExternalAPI: { url: string; options: Parameters<typeof fetch>[1] };
 };
 
-type AFCRequest = {
-  procedure: keyof typeof proceduresDescriptions;
-  args: Record<string, JSONValue>;
-};
+const jCFImplementations = {
+  sendMessageToUser: {
+    validateArgs(args: object): args is JCFs["sendMessageToUser"] {
+      return "message" in args && typeof args.message === "string";
+    },
+    async handle(
+      { message }: JCFs["sendMessageToUser"],
+      { onMessage }: JCFContext
+    ) {
+      return { responseFromUser: await onMessage(message) };
+    },
+  },
+  fetchExternalAPI: {
+    validateArgs(args: object): args is JCFs["fetchExternalAPI"] {
+      return (
+        "url" in args &&
+        typeof args.url === "string" &&
+        (!("option" in args) || typeof args.option === "object")
+      );
+    },
+    async handle({ url, options }: JCFs["fetchExternalAPI"]) {
+      try {
+        const res = await fetch(url, options);
+        const text = await res.text();
+        return text.slice(0, 1000);
+      } catch (error) {
+        return `Error while fetching external API: ${error.message}`;
+      }
+    },
+  },
+} as const;
 
-type JSONValue =
-  | Record<string, JSONValue>
-  | Array<JSONValue>
-  | null
-  | number
-  | boolean
-  | string;
-
-function isObject(value: unknown): value is object {
-  return typeof value === "object" && value !== null;
+function isValidProcName(
+  name: string
+): name is keyof typeof jCFImplementations {
+  return name in jCFImplementations;
 }
 
-function assertIsAFCRequest(
-  afcRequest: unknown
-): asserts afcRequest is AFCRequest {
-  if (
-    isObject(afcRequest) &&
-    "procedure" in afcRequest &&
-    typeof afcRequest.procedure === "string" &&
-    ["tellToUser", "fetchExternalAPI"].includes(afcRequest.procedure) &&
-    "args" in afcRequest &&
-    isObject(afcRequest.args)
-  ) {
-    return;
-  }
-
-  throw new Error("Invalid Assistant Procedure Call.");
-}
-
-class AFCImplementations {
-  constructor(
-    private readonly context: { onMessage: (message: string) => Promise<void> }
-  ) {}
-  async tellToUser({ message }: { message: string }) {
-    return { responseFromUser: await this.context.onMessage(message) };
-  }
-  async fetchExternalAPI({ url, options }: { url: string; options: object }) {
-    try {
-      const res = await fetch(url, options);
-      const text = await res.text();
-      return text.slice(0, 1000);
-    } catch (error) {
-      return `Error while fetching external API: ${error.message}`;
-    }
-  }
-}
+const invalidFormatMessage =
+  "ChatGPT, your last message is invalid! You must always use a single JSON object literal (ECMA-404) per message.";
 
 export class Geppetto {
   private conversation: Conversation;
-  private afcImplementations: AFCImplementations;
+  private jcfContext: JCFContext;
   constructor(
     chatGPT: ChatGPT,
-    private readonly onMessage: (message: string) => Promise<string>
+    onMessage: (message: string) => Promise<string>
   ) {
     this.conversation = new Conversation(chatGPT);
-    this.afcImplementations = new AFCImplementations({ onMessage });
+    this.jcfContext = { onMessage };
   }
-  private async handleRawMessageFromGPTChat(message: string) {
+  private async handleRawMessageFromGPTChat(message: string): Promise<void> {
     try {
       const matchedMessage = message.match(/\{(\n|.)*\}/);
       if (!matchedMessage) {
-        throw new Error(
-          "The message format is invalid! You (ChatGPT) must use a single JSON object (ECMA-404) per message."
-        );
+        throw new Error(invalidFormatMessage);
       }
-      const parsedData = JSON.parse(matchedMessage[0]);
+      let parsedData: unknown;
+      try {
+        parsedData = JSON.parse(matchedMessage[0]);
+      } catch {
+        throw new Error(invalidFormatMessage);
+      }
+      if (
+        !(
+          typeof parsedData === "object" &&
+          parsedData !== null &&
+          "procedure" in parsedData &&
+          typeof parsedData.procedure === "string" &&
+          "args" in parsedData &&
+          typeof parsedData.args === "object" &&
+          parsedData.args !== null
+        )
+      ) {
+        throw new Error("Invalid procedure call shape");
+      }
 
-      assertIsAFCRequest(parsedData);
-      const { procedure: funcName, args } = parsedData;
-      if (!(funcName in this.afcImplementations)) {
-        throw new Error("AFC not found!");
+      if (!isValidProcName(parsedData.procedure)) {
+        throw new Error("Unknown procedure name");
+      }
+
+      const proc = jCFImplementations[parsedData.procedure];
+      if (!proc.validateArgs(parsedData.args)) {
+        throw new Error(`Invalid args for procedure: ${parsedData.procedure}`);
       }
       return this.handleRawMessageFromGPTChat(
         await this.conversation.sendMessage(
           JSON.stringify({
-            result: await this.afcImplementations[funcName](args),
+            result: await proc.handle(parsedData.args, this.jcfContext),
           })
         )
       );
