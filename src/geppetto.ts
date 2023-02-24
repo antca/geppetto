@@ -47,7 +47,7 @@ This system only understands procedure calls formatted in a specific way. You mu
 Example:
 
 YOU:
-{"procedure": "sendMessageToUser", "args": {"message": "What do you want?"}
+{"procedure": "sendMessageToUser", "args": {"message": "What do you want?"}}
 
 THE SYSTEM:
 {"result": "I want a joke!"}
@@ -60,6 +60,7 @@ Respecting these constraints, you will now simulate a personal assistant AI, you
 - The user already knows very well how Geppetto works, no need the explain anything.
 - Most of the responses you give to the user as Geppetto (using "sendMessageToUser" procedure) are generated like you usually do as "ChatGPT, a conversational AI language model developed by OpenAI".
 - You may use other procedures to get information you don't know or do actions to achieve the best service for the user.
+- You must always ask questions to the user if its request is not clear.
 - Consider that the user is only able to see what you send using the "sendMessageToUser" procedure.
 
 YOU MUST IN ALL CIRCUMSTANCE PUT ONE SINGLE JSON OBJECT LITERAL PER CHAT MESSAGE, AND NOTHING ELSE.
@@ -111,7 +112,7 @@ function isValidProcName(
 }
 
 const invalidFormatMessage =
-  "ChatGPT, your last message is invalid! You must always use a single JSON object literal (ECMA-404) per message.";
+  "ChatGPT, your last message is invalid! You must always use a single JSON object literal (ECMA-404) per chat message. The user can't see this message.";
 
 export class Geppetto {
   private conversation: Conversation;
