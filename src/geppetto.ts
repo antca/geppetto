@@ -10,22 +10,13 @@ const proceduresDescriptions = [
     result: "The response from the user",
   },
   {
-    procedure: "fetchExternalAPI",
-    description: "Fetch data from an external API",
-    args: {
-      url: "The URL of the external resuce to fetch",
-      options: "Object of options for the request {header, method, body}",
-    },
-    returns: "The raw response from the API, truncated to 1,000 characters",
-  },
-  {
     procedure: "execCommand",
     description:
       "Executes the given command on an ubuntu system and returns the standard output as string",
     args: {
       command: "The command to execute on the ubuntu system",
     },
-    returns: "A string of the output of the command",
+    result: "An object representing the result of the command",
   },
 ] as const;
 
@@ -38,8 +29,8 @@ Example:
 
 ChatGPT:         {"procedure": "sendMessageToUser", "args": {"message": "What do you want?"}}
 External System: {"result": {"responseFromUser": "I want a joke!"}}
-ChatGPT:         {"procedure": "fetchExternalAPI", "args": {"url": "https://example.com/joke", "options": {"method": "GET"}}}
-External System: {"result": {"joke": "There was a ..."}}
+ChatGPT:         {"procedure": "execCommand", "args": {"command": "echo Hello, World!"}}
+External System: {"result":{"code":0,"stdout":"Hello, World!\\n","stderr":""}}
 ...The cycle continues forever...
 
 Here are the available procedures:
