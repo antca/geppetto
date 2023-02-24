@@ -18,6 +18,15 @@ const proceduresDescriptions = [
     },
     returns: "The raw response from the API, truncated to 1,000 characters",
   },
+  {
+    procedure: "execCommand",
+    description:
+      "Executes the given command on an ubuntu system and returns the standard output as string",
+    args: {
+      command: "The command to execute on the ubuntu system",
+    },
+    returns: "A string of the output of the command",
+  },
 ] as const;
 
 const prompt = `An external system will now take control of the chat conversation.
@@ -52,7 +61,47 @@ type JCFContext = { onMessage: (message: string) => Promise<string> };
 type JCFs = {
   sendMessageToUser: { message: string };
   fetchExternalAPI: { url: string; options: Parameters<typeof fetch>[1] };
+  execCommand: { command: string };
 };
+
+async function executeCommand(
+  cmd: string[],
+  timeout = 5000,
+  maxOutputLength = 1000
+): Promise<{ code: number; stdout: string; stderr: string }> {
+  const decoder = new TextDecoder();
+
+  const subprocess = Deno.run({
+    cmd,
+    stdout: "piped",
+    stderr: "piped",
+  });
+
+  const timer = setTimeout(() => {
+    subprocess.kill();
+  }, timeout);
+
+  const [stdout, stderr] = await Promise.all([
+    subprocess.output(),
+    subprocess.stderrOutput(),
+  ]);
+
+  clearTimeout(timer);
+  const { code } = await subprocess.status();
+  subprocess.close();
+
+  let stdoutText = decoder.decode(stdout);
+  let stderrText = decoder.decode(stderr);
+
+  stdoutText = stdoutText.slice(0, maxOutputLength);
+  stderrText = stderrText.slice(0, maxOutputLength);
+
+  return {
+    code,
+    stdout: stdoutText,
+    stderr: stderrText,
+  };
+}
 
 const jCFImplementations = {
   sendMessageToUser: {
@@ -81,6 +130,30 @@ const jCFImplementations = {
         return text.slice(0, 1000);
       } catch (error) {
         return `Error while fetching external API: ${error.message}`;
+      }
+    },
+  },
+  execCommand: {
+    validateArgs(args: object): args is JCFs["execCommand"] {
+      return "command" in args && typeof args.command === "string";
+    },
+    async handle({ command }: JCFs["execCommand"]) {
+      // `docker exec --user geppetto -w /home/geppetto geppetto-playground bash -lic ${command}`
+      try {
+        return await executeCommand([
+          "docker",
+          "exec",
+          "--user",
+          "geppetto",
+          "-w",
+          "/home/geppetto",
+          "geppetto-playground",
+          "bash",
+          "-lc",
+          command,
+        ]);
+      } catch (error) {
+        return `Failed to execute the command: ${error.message}`;
       }
     },
   },
