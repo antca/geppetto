@@ -41,8 +41,8 @@ const proceduresDescriptions = [
 
 const prompt = `An external system will now take control of the chat conversation.
 This system only understands procedure calls formatted in a specific way. You must respect the format.
-You will call procedures, the system will do the operation and give you the result.
-You must not use any programming language beside plain JSON literals (ECMA-404).
+1) You will put a single JSON object literal containing the name of a procedure and some arguments per chat message.
+2) The external system will fulfill your request and give you the result.
 
 Example:
 
