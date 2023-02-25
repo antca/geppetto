@@ -12,12 +12,13 @@ const proceduresDescriptions = [
   {
     procedure: "execCommand",
     description:
-      "Executes the given command on the linux external system and returns the standard output as string",
+      "Executes the given command on the linux external system and returns the standard output as text",
     args: {
       command:
         "The command to execute on the linux external system, must be properly escaped",
     },
-    result: "An object representing the result of the command",
+    result:
+      "An object representing the result of the command, outputs are truncated to maximum 1000 characters",
   },
 ] as const;
 
