@@ -1,5 +1,3 @@
-// import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
-// import { serveDirWithTs } from "https://deno.land/x/ts_serve@v1.4.4/mod.ts";
 import { ChatGPT } from "./chat_gtp.ts";
 import { Geppetto } from "./geppetto.ts";
 
@@ -16,9 +14,3 @@ const geppetto = new Geppetto(chatGPT, (message: string) => {
   return Promise.resolve(userMessage);
 });
 geppetto.start();
-
-// serve((req: Request) => {
-//   return serveDirWithTs(req, {
-//     fsRoot: "public",
-//   });
-// });
