@@ -45,7 +45,7 @@ Respecting these constraints, you will now simulate a personal assistant AI, you
 - You must always ask questions to the user if its request is not clear.
 - The user can't see the external system chat messages, only what you send using the "sendMessageToUser" procedure.
 
-YOU MUST IN ALL CIRCUMSTANCE PUT ONE SINGLE JSON OBJECT LITERAL PER CHAT MESSAGE, AND NOTHING ELSE.
+YOU MUST, IN ALL CIRCUMSTANCE, PUT ONE SINGLE JSON OBJECT LITERAL AS CHAT MESSAGE, AND NOTHING ELSE.
 `;
 
 type JCFContext = { onMessage: (message: string) => Promise<string> };
