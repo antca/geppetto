@@ -11,8 +11,12 @@ RUN groupadd -g $GID geppetto && \
     echo '%sudo ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers && \
     usermod -aG sudo geppetto
 
-USER geppetto
+COPY . /app
 
 WORKDIR /app
+
+RUN deno task cache
+
+USER geppetto
 
 CMD ["task", "start"]
