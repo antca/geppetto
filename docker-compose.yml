@@ -1,0 +1,12 @@
+version: '3.8'
+services:
+  geppetto:
+    build:
+      context: .
+      args:
+        - UID=${UID_VAR:-1000}
+        - GID=${GID_VAR:-1000}
+    volumes:
+      - .:/app
+    tty: true
+    stdin_open: true

@@ -12,9 +12,10 @@ const proceduresDescriptions = [
   {
     procedure: "execCommand",
     description:
-      "Executes the given command on an ubuntu system and returns the standard output as string",
+      "Executes the given command on the linux external system and returns the standard output as string",
     args: {
-      command: "The command to execute on the ubuntu system",
+      command:
+        "The command to execute on the linux external system, must be properly escaped",
     },
     result: "An object representing the result of the command",
   },
@@ -56,16 +57,17 @@ type JCFs = {
 };
 
 async function executeCommand(
-  cmd: string[],
+  command: string,
   timeout = 5000,
   maxOutputLength = 1000
 ): Promise<{ code: number; stdout: string; stderr: string }> {
   const decoder = new TextDecoder();
 
   const subprocess = Deno.run({
-    cmd,
+    cmd: ["/bin/bash", "-lc", command],
     stdout: "piped",
     stderr: "piped",
+    cwd: "/app/workspace",
   });
 
   const timer = setTimeout(() => {
@@ -129,20 +131,8 @@ const jCFImplementations = {
       return "command" in args && typeof args.command === "string";
     },
     async handle({ command }: JCFs["execCommand"]) {
-      // `docker exec --user geppetto -w /home/geppetto geppetto-playground bash -lic ${command}`
       try {
-        return await executeCommand([
-          "docker",
-          "exec",
-          "--user",
-          "geppetto",
-          "-w",
-          "/home/geppetto",
-          "geppetto-playground",
-          "bash",
-          "-lc",
-          command,
-        ]);
+        return await executeCommand(command);
       } catch (error) {
         return `Failed to execute the command: ${error.message}`;
       }

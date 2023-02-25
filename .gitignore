@@ -1,2 +1,4 @@
 .dir-locals.el
 .chat_gpt_cookie.txt
+workspace/*
+!workspace/.gitkeep
