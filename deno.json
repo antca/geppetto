@@ -1,6 +1,6 @@
 {
   "tasks": {
-    "start": "deno run --allow-net --allow-run --allow-read=public,.chat_gpt_cookie.txt src/main.ts",
-    "dev": "deno run --watch --allow-net --allow-run --allow-read=public,.chat_gpt_cookie.txt src/main.ts"
+    "start": "deno run --allow-net --allow-run --allow-env --allow-read=public,.chat_gpt_cookie.txt src/main.ts",
+    "dev": "deno run --watch --allow-net --allow-run --allow-env --allow-read=public,.chat_gpt_cookie.txt src/main.ts"
   }
 }

@@ -168,5 +168,16 @@
     "https://deno.land/x/ts_serve@v1.4.4/src/oak.ts": "091a9b016c8a7779787a98d47424b77cb82b087ce6c0d0de769878c01ca79105",
     "https://deno.land/x/ts_serve@v1.4.4/utils/transpile.ts": "04dc773080505c1b3d5e5bdd7ba13cc128adee8c51e23ca82b7cda76f596141b",
     "https://deno.land/x/ts_serve@v1.4.4/utils/transpile_response.ts": "72f4bf9ce3f2e06f635e6c82bda7430759939bb7e269b6b08d6721676d1ac60d"
+  },
+  "npm": {
+    "specifiers": {
+      "chalk": "chalk@5.2.0"
+    },
+    "packages": {
+      "chalk@5.2.0": {
+        "integrity": "sha512-ree3Gqw/nazQAPuJJEy+avdl7QfZMcUvmHIKgEZkGL+xOBzRvup5Hxo6LHuMceSxOabuJLJm5Yp/92R9eMmMvA==",
+        "dependencies": {}
+      }
+    }
   }
 }

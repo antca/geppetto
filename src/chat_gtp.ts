@@ -3,7 +3,7 @@ export class Conversation {
   private conversationId?: string;
   constructor(private readonly chatGPT: ChatGPT) {}
   async sendMessage(text: string) {
-    console.debug("=>", text);
+    console.debug("\n=>", text + "\n");
     const lastResponse = await this.chatGPT.sendMessage(
       text,
       this.conversationId,
