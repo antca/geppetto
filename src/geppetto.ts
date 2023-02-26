@@ -164,6 +164,7 @@ const invalidFormatMessage =
 export class Geppetto {
   private conversation: Conversation;
   private jcfContext: JCFContext;
+  private errorsStreak = 0;
   constructor(
     chatGPT: ChatGPT,
     onMessage: (message: string) => Promise<string>
@@ -205,6 +206,7 @@ export class Geppetto {
       if (!proc.validateArgs(parsedData.args)) {
         throw new Error(`Invalid args for procedure: ${parsedData.procedure}`);
       }
+      this.errorsStreak = 0;
       return this.handleRawMessageFromGPTChat(
         await this.conversation.sendMessage(
           JSON.stringify({
@@ -213,6 +215,12 @@ export class Geppetto {
         )
       );
     } catch (error) {
+      this.errorsStreak++;
+      if (this.errorsStreak >= 3) {
+        throw new Error(
+          `ChatGPT generated ${this.errorsStreak} errors in a row, it looks too confused to continue...\nLast error message: ${error.message}`
+        );
+      }
       return this.handleRawMessageFromGPTChat(
         await this.conversation.sendMessage(
           JSON.stringify({ result: `ERROR: ${error.message}` })
