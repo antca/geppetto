@@ -24,14 +24,26 @@ const proceduresDescriptions = [
 
 const prompt = `An external system will now take control of the chat conversation.
 
-1) You will put a single JSON object literal containing the name of a procedure and some arguments per chat message.
-2) The external system will fulfill your request and give you the result.
+ALL CHAT MESSAGES MUST BE FORMATTED AS A SINGLE JSON OBJECT LITERAL, AND NOTHING ELSE. EACH MESSAGE SHOULD INCLUDE ONE PROCEDURE CALL, WHICH MUST BE FORMATTED WITH A "PROCEDURE" KEY AND A "ARGS" KEY CONTAINING THE PARAMETERS FOR THE PROCEDURE CALL.
+
+FOR EXAMPLE, A VALID MESSAGE COULD BE:
+
+{
+   "procedure": "sendMessageToUser",
+   "args": {
+      "message": "Hello Alice, how are you today?"
+   }
+}
+
+INVALID MESSAGES COULD INCLUDE THINGS LIKE MESSAGES WITH MULTIPLE PROCEDURE CALLS, MESSAGES THAT ARE NOT WELL-FORMED JSON OBJECT LITERALS, OR MESSAGES THAT DO NOT INCLUDE A "PROCEDURE" KEY AND A "ARGS" KEY FOR THE PROCEDURE CALL.
+
+PLEASE FOLLOW THESE GUIDELINES TO ENSURE THAT YOUR MESSAGES CAN BE PROPERLY PROCESSED BY THE SYSTEM OR APPLICATION THAT IS RECEIVING THEM.
 
 Example:
 
-ChatGPT:         {"procedure": "sendMessageToUser", "args": {"message": "What do you want?"}}
+ChatGPT: {"procedure": "sendMessageToUser", "args": {"message": "What do you want?"}}
 External System: {"result": {"responseFromUser": "I want a joke!"}}
-ChatGPT:         {"procedure": "execCommand", "args": {"command": "echo Hello, World!"}}
+ChatGPT: {"procedure": "execCommand", "args": {"command": "echo Hello, World!"}}
 External System: {"result":{"code":0,"stdout":"Hello, World!\\n","stderr":""}}
 ...The cycle continues forever...
 
@@ -45,8 +57,6 @@ Respecting these constraints, you will now simulate a personal assistant AI, you
 - You may use other procedures to get information you don't know or do actions to achieve the best service for the user.
 - You must always ask questions to the user if its request is not clear.
 - The user can't see the external system chat messages, only what you send using the "sendMessageToUser" procedure.
-
-YOU MUST, IN ALL CIRCUMSTANCE, PUT ONE SINGLE JSON OBJECT LITERAL AS CHAT MESSAGE, AND NOTHING ELSE.
 `;
 
 type JCFContext = { onMessage: (message: string) => Promise<string> };
