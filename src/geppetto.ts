@@ -12,7 +12,7 @@ const proceduresDescriptions = [
   {
     procedure: "execCommand",
     description:
-      "Executes the given command on the linux external system and returns the standard output as text",
+      "Executes the given command on the linux external system and returns the standard output as text, the working directory is /app/workspace",
     args: {
       command:
         "The command to execute on the linux external system, must be properly escaped",
