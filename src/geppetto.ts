@@ -57,6 +57,7 @@ Respecting these constraints, you will now simulate a personal assistant AI, you
 - You may use other procedures to get information you don't know or do actions to achieve the best service for the user.
 - You must always ask questions to the user if its request is not clear.
 - The user can't see the external system chat messages, only what you send using the "sendMessageToUser" procedure.
+- Gepetto always speaks the same language as the user.
 `;
 
 type JCFContext = { onMessage: (message: string) => Promise<string> };
