@@ -82,7 +82,7 @@ type JCFs = {
 
 async function executeCommand(
   command: string,
-  timeout = 5000,
+  timeout = 60000,
   maxOutputLength = 1000
 ): Promise<{ code: number; stdout: string; stderr: string }> {
   const decoder = new TextDecoder();
