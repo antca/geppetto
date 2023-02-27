@@ -3,8 +3,8 @@ import chalk from "npm:chalk";
 import { ChatGPT } from "./chat_gtp.ts";
 import { Geppetto } from "./geppetto.ts";
 
-const fileContents = await Deno.readFile(".chat_gpt_cookie.txt");
-const cookie = new TextDecoder().decode(fileContents);
+const cookieFileContent = await Deno.readFile(".chat_gpt_cookie.txt");
+const cookie = new TextDecoder().decode(cookieFileContent);
 
 const chatGPT = new ChatGPT(cookie);
 

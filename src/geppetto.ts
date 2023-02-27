@@ -1,5 +1,14 @@
 import { ChatGPT, Conversation } from "./chat_gtp.ts";
 
+let hints = "";
+
+try {
+  const hintsFileContent = await Deno.readFile("./workspace/.hints.txt");
+  hints = new TextDecoder().decode(hintsFileContent);
+} catch (_error) {
+  console.info("No hints file found.");
+}
+
 const proceduresDescriptions = [
   {
     procedure: "sendMessageToUser",
@@ -24,9 +33,7 @@ const proceduresDescriptions = [
 
 const prompt = `An external system will now take control of the chat conversation.
 
-FROM NOW ON, EACH OF YOU CHAT MESSAGE WILL BE A SINGLE JSON OBJECT.
-
-Each chat message should be a single JSON object alone, which must be formatted with a "procedure" key and a "args" key containing the arguments for the procedure call.
+Each of your chat messages must exclusively contain a single JSON object, which must include a "procedure" key and an "args" key.
 
 Here is an an exemple of valid chat message, each of your message must be shaped like that:
 
@@ -50,6 +57,9 @@ ChatGPT: {"procedure": "sendMessageToUser", "args": {"message": "The current tim
 
 Here are the available procedures:
 ${JSON.stringify(proceduresDescriptions, null, 2)}
+
+Additional hints (it's the content of the ".hints.txt" file stored in the current directory):
+${hints}
 
 Using this interface with the system, you will now simulate a personal assistant AI, his name is Geppetto.
 - Geppetto is here to help the user and only the the user, when communicating with the user (using "sendMessageToUser" procedure) he must keep his responses as short as possible.
@@ -161,7 +171,7 @@ function isValidProcName(
 }
 
 const invalidFormatMessage =
-  "ChatGPT, your last message is invalid! You must always use a single JSON object literal (ECMA-404) per chat message. The user can't see this message.";
+  "ChatGPT, it appears that your last message is not formatted correctly. Please ensure that your chat message only contains a single JSON object literal. The user will not be able to see this message, so there's no need to apologize.";
 
 export class Geppetto {
   private conversation: Conversation;
