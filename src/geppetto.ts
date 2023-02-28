@@ -33,18 +33,11 @@ const proceduresDescriptions = [
 
 const prompt = `An external system will now take control of the chat conversation.
 
-Each of your chat messages must exclusively contain a single JSON object, which must include a "procedure" key and an "args" key.
+EACH OF YOUR CHAT MESSAGES MUST EXCLUSIVELY CONTAIN A SINGLE JSON OBJECT, WHICH MUST INCLUDE A "procedure" KEY AND AN "args" KEY.
 
-Here is an an exemple of valid chat message, each of your message must be shaped like that:
+Here is an an exemple of valid chat message:
 
-{
-   "procedure": "sendMessageToUser",
-   "args": {
-      "message": "Hello Alice, how are you today?"
-   }
-}
-
-Please follow these guidelines to ensure that your messages can be properly processed by the system that is receiving them.
+{"procedure": "sendMessageToUser", "args": {"message": "Hello Alice!\nHow are you today?"}}
 
 Discussion example:
 
