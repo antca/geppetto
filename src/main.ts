@@ -8,11 +8,16 @@ const cookie = new TextDecoder().decode(cookieFileContent);
 
 const chatGPT = new ChatGPT(cookie);
 
-const geppetto = new Geppetto(chatGPT, (message: string) => {
-  const geppettoName = chalk.blue.bold("Geppetto:");
+const geppetto = new Geppetto(chatGPT, (messages: string[]) => {
+  const geppettoMessages = messages
+    .map((geppettoMessage) => {
+      const geppettoName = chalk.blue.bold("Geppetto:");
+      return `${geppettoName} ${geppettoMessage}`;
+    })
+    .join("\n");
   const userName = chalk.yellow.bold("You:");
 
-  const userMessage = prompt(`\n${geppettoName} ${message}\n\n${userName}`);
+  const userMessage = prompt(`${geppettoMessages}\n${userName}`);
   if (!userMessage) {
     throw new Error("No message from prompt!");
   }

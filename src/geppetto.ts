@@ -1,5 +1,7 @@
 import { ChatGPT, Conversation } from "./chat_gtp.ts";
 
+const commandKey = crypto.randomUUID();
+
 let hints = "";
 
 try {
@@ -9,69 +11,55 @@ try {
   console.info("No hints file found.");
 }
 
-const proceduresDescriptions = [
-  {
-    procedure: "sendMessageToUser",
-    description: "Sends a message to the user and returns his response",
-    args: {
-      message: "The message to send to the user",
-    },
-    result: "The response from the user",
-  },
-  {
-    procedure: "execCommand",
-    description:
-      "Executes the given command on the linux external system and returns the standard output as text, the working directory is /app/workspace",
-    args: {
-      command:
-        "The command to execute on the linux external system, must be properly escaped",
-    },
-    result:
-      "An object representing the result of the command, outputs are truncated to maximum 1000 characters",
-  },
-] as const;
+const prompt = `A linux system is now participating the conversation.
 
-const prompt = `An external system will now take control of the chat conversation.
+You must include commands in your messages, the linux system will execute them, and provide you the result.
 
-EACH OF YOUR CHAT MESSAGES MUST EXCLUSIVELY CONTAIN A SINGLE JSON OBJECT, WHICH MUST INCLUDE A "procedure" KEY AND AN "args" KEY.
+Here is an example how you can execute a command, this syntax is required for all you commands:
+=== COMMAND START ${commandKey}  ===
+<your command>
+=== COMMAND END ${commandKey}  ===
 
-Here is an an exemple of valid chat message:
+The linux system will collect all your commands and execute them in the same order as they appear in message.
+It will then create a new message with a special header "*** LINUX SYSTEM MESSAGE ***" containing the result of these commands.
+The output will be truncated if it is more than 1000 characters.
+You can use the "sudo" command.
+The current directory is "/app/workspace/".
+You commands must include this session command key: ${commandKey}
 
-{"procedure": "sendMessageToUser", "args": {"message": "Hello Alice!\nHow are you today?"}}
+Here is an example of a conversation:
 
-Discussion example:
+> Me:
+> What time is it ?
+>
+> ChatGPT:
+> === COMMAND START ${commandKey} ===
+> date +'%r %Z'
+> === COMMAND END ${commandKey} ===
+>
+> Me (as linux system):
+> *** LINUX SYSTEM MESSAGE ***
+> === COMMAND RESULT (code 0) ===
+> 12:00:20 PM UTC\n
+>
+> ChatGPT:
+> The current time is: 12:00:20 PM UTC
+>
+> Me:
+> Thank you!
 
-ChatGPT: {"procedure": "sendMessageToUser", "args": {"message": "What do you want?"}}
-User: {"result": {"responseFromUser": "What time is it?"}}
-ChatGPT: {"procedure": "execCommand", "args": {"command": "date +'%r %Z'"}}
-User: {"result":{"code":0,"stdout":"12:00:20 PM UTC\n","stderr":""}}
-ChatGPT: {"procedure": "sendMessageToUser", "args": {"message": "The current time is: 12:00:20 PM UTC"}}
-...The cycle continues indefinitely...
-
-Here are the available procedures:
-${JSON.stringify(proceduresDescriptions, null, 2)}
 
 Additional hints (it's the content of the ".hints.txt" file stored in the current directory):
 ${hints}
 
-Using this interface with the system, you will now simulate a personal assistant AI, his name is Geppetto.
-- Geppetto is here to help the user and only the the user, when communicating with the user (using "sendMessageToUser" procedure) he must keep his responses as short as possible.
-- The user already knows very well how Geppetto works, no need the explain anything.
-- Most of the responses you give to the user as Geppetto (using "sendMessageToUser" procedure) are generated like you usually do as "ChatGPT, a conversational AI language model developed by OpenAI".
-- You may use other procedures to get information you don't know or do actions to achieve the best service for the user.
-- You can use "execCommand" to execute commands on the linux system.
-- You must always ask questions to the user if its request is not clear.
-- The user can't see the external system chat messages, only what you send using the "sendMessageToUser" procedure.
-- Gepetto always speaks the same language as the user.
+You will now act as Geppetto, a personal assistant AI.
+- Geppetto is here to help me and only me, when communicating with me he must keep his responses as short as possible.
+- I already knows very well how Geppetto works, no need the explain anything.
+- Most of the responses you give me as Geppetto are generated like you usually do as "ChatGPT, a conversational AI language model developed by OpenAI".
+- You have full control on the linux system using COMMAND in your message.
+- I am aware that you have access to a linux shell as administrator.
+- When I mention files, internet access, etc., I implicitly refer to the linux system.
 `;
-
-type JCFContext = { onMessage: (message: string) => Promise<string> };
-
-type JCFs = {
-  sendMessageToUser: { message: string };
-  fetchExternalAPI: { url: string; options: Parameters<typeof fetch>[1] };
-  execCommand: { command: string };
-};
 
 async function executeCommand(
   command: string,
@@ -113,125 +101,67 @@ async function executeCommand(
   };
 }
 
-const jCFImplementations = {
-  sendMessageToUser: {
-    validateArgs(args: object): args is JCFs["sendMessageToUser"] {
-      return "message" in args && typeof args.message === "string";
-    },
-    async handle(
-      { message }: JCFs["sendMessageToUser"],
-      { onMessage }: JCFContext
-    ) {
-      return { responseFromUser: await onMessage(message) };
-    },
-  },
-  fetchExternalAPI: {
-    validateArgs(args: object): args is JCFs["fetchExternalAPI"] {
-      return (
-        "url" in args &&
-        typeof args.url === "string" &&
-        (!("option" in args) || typeof args.option === "object")
-      );
-    },
-    async handle({ url, options }: JCFs["fetchExternalAPI"]) {
-      try {
-        const res = await fetch(url, options);
-        const text = await res.text();
-        return text.slice(0, 1000);
-      } catch (error) {
-        return `Error while fetching external API: ${error.message}`;
-      }
-    },
-  },
-  execCommand: {
-    validateArgs(args: object): args is JCFs["execCommand"] {
-      return "command" in args && typeof args.command === "string";
-    },
-    async handle({ command }: JCFs["execCommand"]) {
-      try {
-        return await executeCommand(command);
-      } catch (error) {
-        return `Failed to execute the command: ${error.message}`;
-      }
-    },
-  },
-} as const;
-
-function isValidProcName(
-  name: string
-): name is keyof typeof jCFImplementations {
-  return name in jCFImplementations;
-}
-
-const invalidFormatMessage =
-  "ChatGPT, it appears that your last message is not formatted correctly. Please ensure that your chat message only contains a single JSON object literal. The user will not be able to see this message, so there's no need to apologize.";
+const commandRegex = new RegExp(
+  `((?:.|\\n)*?)(?:(?:=== COMMAND START ${commandKey} ===\\n((?:.|\\n)*?)\\n=== COMMAND END ${commandKey} ===)|$)`,
+  "g"
+);
 
 export class Geppetto {
   private conversation: Conversation;
-  private jcfContext: JCFContext;
-  private errorsStreak = 0;
   constructor(
     chatGPT: ChatGPT,
-    onMessage: (message: string) => Promise<string>
+    private readonly onMessages: (messages: string[]) => Promise<string>
   ) {
     this.conversation = new Conversation(chatGPT);
-    this.jcfContext = { onMessage };
   }
-  private async handleRawMessageFromGPTChat(message: string): Promise<void> {
-    try {
-      const matchedMessage = message.match(/\{(\n|.)*\}/);
-      if (!matchedMessage) {
-        throw new Error(invalidFormatMessage);
-      }
-      let parsedData: unknown;
-      try {
-        parsedData = JSON.parse(matchedMessage[0]);
-      } catch {
-        throw new Error(invalidFormatMessage);
-      }
-      if (
-        !(
-          typeof parsedData === "object" &&
-          parsedData !== null &&
-          "procedure" in parsedData &&
-          typeof parsedData.procedure === "string" &&
-          "args" in parsedData &&
-          typeof parsedData.args === "object" &&
-          parsedData.args !== null
-        )
-      ) {
-        throw new Error("Invalid procedure call shape");
-      }
-
-      if (!isValidProcName(parsedData.procedure)) {
-        throw new Error("Unknown procedure name");
-      }
-
-      const proc = jCFImplementations[parsedData.procedure];
-      if (!proc.validateArgs(parsedData.args)) {
-        throw new Error(`Invalid args for procedure: ${parsedData.procedure}`);
-      }
-      this.errorsStreak = 0;
-      return this.handleRawMessageFromGPTChat(
-        await this.conversation.sendMessage(
-          JSON.stringify({
-            result: await proc.handle(parsedData.args, this.jcfContext),
-          })
-        )
-      );
-    } catch (error) {
-      this.errorsStreak++;
-      if (this.errorsStreak >= 3) {
-        throw new Error(
-          `ChatGPT generated ${this.errorsStreak} errors in a row, it looks too confused to continue...\nLast error message: ${error.message}`
-        );
-      }
-      return this.handleRawMessageFromGPTChat(
-        await this.conversation.sendMessage(
-          JSON.stringify({ result: `ERROR: ${error.message}` })
-        )
+  private async handleRawMessageFromGPTChat(
+    message: string,
+    acc: string[] = []
+  ): Promise<void> {
+    if (acc.length >= 3) {
+      throw new Error(
+        `It looks like ChatGPT is stuck in a loop!\n${acc.join("\n")}`
       );
     }
+    const parts = (
+      await Promise.all(
+        Array.from(message.matchAll(commandRegex)).map(
+          async ([, text, command]) => {
+            if (!command) {
+              return [text, null];
+            }
+            const { code, stdout, stderr } = await executeCommand(command);
+            return [
+              text,
+              `=== COMMAND START ===\n${command}\n=== COMMAND END ===\n=== COMMAND RESULT (code ${code}) ===\n${stdout}\n${stderr}\n`,
+            ];
+          }
+        )
+      )
+    ).flat();
+
+    const commandResults = parts
+      .filter((_, i) => i % 2 !== 0)
+      .filter((command): command is string => typeof command === "string");
+
+    const allMessages = [
+      ...acc,
+      parts.filter((part): part is string => typeof part === "string").join(""),
+    ];
+
+    if (commandResults.length > 0) {
+      const commandResultsMessage = `*** LINUX SYSTEM MESSAGE ***\n${commandResults.join(
+        "\n"
+      )} `;
+      return this.handleRawMessageFromGPTChat(
+        await this.conversation.sendMessage(commandResultsMessage),
+        allMessages
+      );
+    }
+
+    return this.handleRawMessageFromGPTChat(
+      await this.conversation.sendMessage(await this.onMessages(allMessages))
+    );
   }
   async start() {
     return this.handleRawMessageFromGPTChat(

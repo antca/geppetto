@@ -3,7 +3,7 @@ export class Conversation {
   private conversationId?: string;
   constructor(private readonly chatGPT: ChatGPT) {}
   async sendMessage(text: string) {
-    console.debug("\n=>", text + "\n");
+    // console.debug("\n=>", text + "\n");
     const lastResponse = await this.chatGPT.sendMessage(
       text,
       this.conversationId,
@@ -11,7 +11,7 @@ export class Conversation {
     );
     this.lastResponseMessageId = lastResponse.id;
     this.conversationId = lastResponse.conversationId;
-    console.debug("<=", lastResponse.text);
+    // console.debug("<=", lastResponse.text);
     return lastResponse.text;
   }
 }
