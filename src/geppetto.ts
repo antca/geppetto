@@ -1,4 +1,8 @@
-import { ChatGPT, Conversation } from "./chat_gtp.ts";
+import {
+  type ChatGPT,
+  type Conversation,
+  type MessagePart,
+} from "./chat_gtp.ts";
 
 const commandKey = crypto.randomUUID();
 
@@ -16,9 +20,9 @@ const prompt = `A linux system is now participating the conversation.
 You must include commands in your messages, the linux system will execute them, and provide you the result.
 
 Here is an example how you can execute a command, this syntax is required for all you commands:
-=== COMMAND START ${commandKey}  ===
+=== COMMAND START ${commandKey} ===
 <your command>
-=== COMMAND END ${commandKey}  ===
+=== COMMAND END ${commandKey} ===
 
 The linux system will collect all your commands and execute them in the same order as they appear in message.
 It will then create a new message with a special header "*** LINUX SYSTEM MESSAGE ***" containing the result of these commands.
@@ -102,70 +106,82 @@ async function executeCommand(
 }
 
 const commandRegex = new RegExp(
-  `((?:.|\\n)*?)(?:(?:=== COMMAND START ${commandKey} ===\\n((?:.|\\n)*?)\\n=== COMMAND END ${commandKey} ===)|$)`,
-  "g"
+  `=== COMMAND START ${commandKey} ===\\n((?:.|\\n)*?)\\n=== COMMAND END ${commandKey} ===`
 );
+
+type NewMessageResponsePart = {
+  type: "NewMessage";
+};
+
+type MessageChunkResponsePart = {
+  type: "MessageChunk";
+  text: string;
+};
+
+type CommandResultResponsePart = {
+  type: "CommandResult";
+  text: string;
+};
+
+type ResponsePart =
+  | NewMessageResponsePart
+  | MessageChunkResponsePart
+  | CommandResultResponsePart;
 
 export class Geppetto {
   private conversation: Conversation;
-  constructor(
-    chatGPT: ChatGPT,
-    private readonly onMessages: (messages: string[]) => Promise<string>
-  ) {
-    this.conversation = new Conversation(chatGPT);
+  constructor(chatGPT: ChatGPT) {
+    this.conversation = chatGPT.newConversation();
   }
-  private async handleRawMessageFromGPTChat(
-    message: string,
-    acc: string[] = []
-  ): Promise<void> {
-    if (acc.length >= 3) {
-      throw new Error(
-        `It looks like ChatGPT is stuck in a loop!\n${acc.join("\n")}`
+  private async *handleMessageFromChatGPT(
+    message: AsyncGenerator<MessagePart>
+  ): AsyncGenerator<ResponsePart> {
+    yield { type: "NewMessage" };
+
+    let commandBuffer = "";
+    let commandResults = "";
+    for await (const messagePart of message) {
+      commandBuffer += messagePart.text;
+      const match = commandBuffer.match(commandRegex);
+      if (!match) {
+        yield { type: "MessageChunk", text: messagePart.text };
+        continue;
+      }
+      const [, , postCommandChunk] = commandBuffer.split(commandRegex);
+
+      commandBuffer = "";
+
+      const commandRest = messagePart.text.slice(
+        0,
+        messagePart.text.lastIndexOf(postCommandChunk)
+      );
+
+      yield {
+        type: "MessageChunk",
+        text: commandRest,
+      };
+
+      const [, command] = match;
+      const { code, stdout, stderr } = await executeCommand(command);
+      const commandResult = `\n=== COMMAND RESULT (code ${code}) ===\n${stdout}\n${stderr}`;
+      commandResults += commandResult;
+      yield { type: "CommandResult", text: commandResult };
+      yield { type: "MessageChunk", text: postCommandChunk };
+    }
+    yield { type: "MessageChunk", text: "\n" };
+    if (commandResults) {
+      const commandResultsMessage = `*** LINUX SYSTEM MESSAGE ***\n${commandResults} `;
+      commandResults = "";
+      yield* this.handleMessageFromChatGPT(
+        this.conversation.sendMessage(commandResultsMessage)
       );
     }
-    const parts = (
-      await Promise.all(
-        Array.from(message.matchAll(commandRegex)).map(
-          async ([, text, command]) => {
-            if (!command) {
-              return [text, null];
-            }
-            const { code, stdout, stderr } = await executeCommand(command);
-            return [
-              text,
-              `=== COMMAND START ===\n${command}\n=== COMMAND END ===\n=== COMMAND RESULT (code ${code}) ===\n${stdout}\n${stderr}\n`,
-            ];
-          }
-        )
-      )
-    ).flat();
-
-    const commandResults = parts
-      .filter((_, i) => i % 2 !== 0)
-      .filter((command): command is string => typeof command === "string");
-
-    const allMessages = [
-      ...acc,
-      parts.filter((part): part is string => typeof part === "string").join(""),
-    ];
-
-    if (commandResults.length > 0) {
-      const commandResultsMessage = `*** LINUX SYSTEM MESSAGE ***\n${commandResults.join(
-        "\n"
-      )} `;
-      return this.handleRawMessageFromGPTChat(
-        await this.conversation.sendMessage(commandResultsMessage),
-        allMessages
-      );
-    }
-
-    return this.handleRawMessageFromGPTChat(
-      await this.conversation.sendMessage(await this.onMessages(allMessages))
-    );
   }
-  async start() {
-    return this.handleRawMessageFromGPTChat(
-      await this.conversation.sendMessage(prompt)
-    );
+  async *start(): AsyncGenerator<AsyncGenerator<ResponsePart>, void, string> {
+    let messageGen = this.conversation.sendMessage(prompt);
+    while (true) {
+      const response = yield this.handleMessageFromChatGPT(messageGen);
+      messageGen = this.conversation.sendMessage(response);
+    }
   }
 }

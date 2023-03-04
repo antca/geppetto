@@ -2,17 +2,24 @@ export class Conversation {
   private lastResponseMessageId?: string;
   private conversationId?: string;
   constructor(private readonly chatGPT: ChatGPT) {}
-  async sendMessage(text: string) {
-    // console.debug("\n=>", text + "\n");
-    const lastResponse = await this.chatGPT.sendMessage(
+  async *sendMessage(text: string): AsyncGenerator<MessagePart> {
+    const gen = this.chatGPT.sendMessage(
       text,
       this.conversationId,
       this.lastResponseMessageId
     );
-    this.lastResponseMessageId = lastResponse.id;
-    this.conversationId = lastResponse.conversationId;
-    // console.debug("<=", lastResponse.text);
-    return lastResponse.text;
+
+    const { value: firstMessage, done } = await gen.next();
+
+    if (done || !firstMessage) {
+      return;
+    }
+
+    this.lastResponseMessageId = firstMessage.id;
+    this.conversationId = firstMessage.conversationId;
+    yield firstMessage;
+
+    yield* gen;
   }
 }
 
@@ -60,11 +67,11 @@ export class ChatGPT {
   newConversation() {
     return new Conversation(this);
   }
-  async sendMessage(
+  async *sendMessage(
     text: string,
     conversationId?: string,
     parentMessageId?: string
-  ) {
+  ): AsyncGenerator<MessagePart> {
     const accessToken = await this.getAccessToken();
     const data = {
       action: "next",
@@ -94,33 +101,147 @@ export class ChatGPT {
         body: JSON.stringify(data),
       }
     );
-    const textResponse = await response.text();
-    const {
-      message,
-      error,
-      conversation_id: responseConversationId,
-    } = getEndData(textResponse);
-    if (error) {
-      throw new Error("Something went wrong when sending message!");
+    if (!response.body) {
+      throw new Error("No data received after sending message");
     }
 
-    return {
-      id: message.id,
-      text: message.content.parts[0],
-      conversationId: responseConversationId,
-    };
+    let lastMessage = "";
+    let partNumber = 0;
+    const decoder = new TextDecoder("utf-8");
+
+    for await (const chunk of response.body) {
+      const decodedChunk = decoder.decode(chunk);
+      const chunkParts = decodedChunk.trim().split("\n\n");
+
+      for (const chunkPart of chunkParts) {
+        const chunkData = chunkPart.trim().replace("data: ", "");
+
+        if (chunkData.trim() === "[DONE]") {
+          return;
+        }
+
+        const data: unknown = JSON.parse(chunkData);
+
+        assertMessageResponse(data);
+
+        const { message, error, conversation_id } = data;
+
+        if (error) {
+          throw new Error("Something went wrong when sending message!");
+        }
+
+        if (message.author.role !== "assistant") {
+          continue;
+        }
+
+        const messagePart = message.content.parts[0];
+
+        yield {
+          id: message.id,
+          text: messagePart.replace(lastMessage, ""),
+          conversationId: conversation_id,
+          partNumber: partNumber++,
+        };
+
+        lastMessage = messagePart;
+      }
+    }
   }
 }
 
-function getEndData(raw: string): MessageResponse {
-  const messages = raw.trim().split("\n\n");
-  const finalDataRaw = messages[messages.length - 2].replace("data: ", "");
-  return JSON.parse(finalDataRaw);
+const roles = ["system", "user", "assistant"] as const;
+const rolesLax: readonly string[] = roles;
+
+function assertMessageResponse(data: unknown): asserts data is MessageResponse {
+  if (!(typeof data === "object" && data !== null)) {
+    throw new Error("MessageResponse is invalid!");
+  }
+  if (
+    !("conversation_id" in data && typeof data.conversation_id === "string")
+  ) {
+    throw new Error("MessageResponse.conversation_id is invalid!");
+  }
+  if (
+    !(
+      "message" in data &&
+      typeof data.message === "object" &&
+      data.message !== null
+    )
+  ) {
+    throw new Error("MessageResponse.message is invalid!");
+  }
+  if (!("id" in data.message && typeof data.message.id === "string")) {
+    throw new Error("MessageResponse.message.id is invalid!");
+  }
+  if (
+    !(
+      "content" in data.message &&
+      typeof data.message.content === "object" &&
+      data.message.content !== null
+    )
+  ) {
+    throw new Error("MessageResponse.message.content is invalid!");
+  }
+  if (
+    !(
+      "content" in data.message &&
+      typeof data.message.content === "object" &&
+      data.message.content !== null
+    )
+  ) {
+    throw new Error("MessageResponse.message.content is invalid!");
+  }
+  if (
+    !(
+      "parts" in data.message.content &&
+      Array.isArray(data.message.content.parts) &&
+      data.message.content.parts.length === 1 &&
+      typeof data.message.content.parts[0] === "string"
+    )
+  ) {
+    throw new Error("MessageResponse.message.content.parts is invalid!");
+  }
+  if (
+    !(
+      "parts" in data.message.content &&
+      Array.isArray(data.message.content.parts) &&
+      data.message.content.parts.length === 1 &&
+      typeof data.message.content.parts[0] === "string"
+    )
+  ) {
+    throw new Error("MessageResponse.message.content.parts is invalid!");
+  }
+  if (
+    !(
+      "author" in data.message &&
+      typeof data.message.author === "object" &&
+      data.message.author !== null
+    )
+  ) {
+    throw new Error("MessageResponse.message.author is invalid!");
+  }
+  if (
+    !(
+      "role" in data.message.author &&
+      typeof data.message.author.role === "string" &&
+      rolesLax.includes(data.message.author.role)
+    )
+  ) {
+    throw new Error("MessageResponse.message.author.role is invalid!");
+  }
 }
+
+export type MessagePart = {
+  id: string;
+  text: string;
+  conversationId: string;
+  partNumber: number;
+};
 
 type MessageResponse = {
   message: {
     id: string;
+    author: { role: typeof roles[number] };
     content: {
       parts: [string];
     };
