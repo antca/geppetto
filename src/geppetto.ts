@@ -106,7 +106,7 @@ async function executeCommand(
 }
 
 const commandRegex = new RegExp(
-  `=== COMMAND START ${commandKey} ===\\n((?:.|\\n)*?)\\n=== COMMAND END ${commandKey} ===`
+  `(=== COMMAND START ${commandKey} ===\\n)((?:.|\\n)*?)(\\n=== COMMAND END ${commandKey} ===)`
 );
 
 type NewMessageResponsePart = {
@@ -123,10 +123,16 @@ type CommandResultResponsePart = {
   text: string;
 };
 
-type ResponsePart =
+type ConfirmRunCommandResponsePart = {
+  type: "ConfirmRunCommand";
+  command: string;
+};
+
+export type ResponsePart =
   | NewMessageResponsePart
   | MessageChunkResponsePart
-  | CommandResultResponsePart;
+  | CommandResultResponsePart
+  | ConfirmRunCommandResponsePart;
 
 export class Geppetto {
   private conversation: Conversation;
@@ -135,25 +141,32 @@ export class Geppetto {
   }
   private async *handleMessageFromChatGPT(
     message: AsyncGenerator<MessagePart>
-  ): AsyncGenerator<ResponsePart> {
+  ): AsyncGenerator<ResponsePart, void, boolean | unknown> {
     yield { type: "NewMessage" };
 
     let commandBuffer = "";
     let commandResults = "";
     for await (const messagePart of message) {
       commandBuffer += messagePart.text;
-      const match = commandBuffer.match(commandRegex);
-      if (!match) {
+
+      const splitResult = commandBuffer.split(commandRegex);
+
+      if (splitResult.length !== 5) {
         yield { type: "MessageChunk", text: messagePart.text };
         continue;
       }
-      const [, , postCommandChunk] = commandBuffer.split(commandRegex);
 
-      commandBuffer = "";
+      const [
+        _preCommand,
+        _commandHeader,
+        command,
+        commandTrailer,
+        postCommand,
+      ] = splitResult;
 
-      const commandRest = messagePart.text.slice(
-        0,
-        messagePart.text.lastIndexOf(postCommandChunk)
+      const commandRest = commandBuffer.slice(
+        commandBuffer.lastIndexOf(messagePart.text),
+        commandBuffer.lastIndexOf(commandTrailer) + commandTrailer.length
       );
 
       yield {
@@ -161,16 +174,22 @@ export class Geppetto {
         text: commandRest,
       };
 
-      const [, command] = match;
-      const { code, stdout, stderr } = await executeCommand(command);
-      const commandResult = `\n=== COMMAND RESULT (code ${code}) ===\n${stdout}\n${stderr}`;
-      commandResults += commandResult;
-      yield { type: "CommandResult", text: commandResult };
-      yield { type: "MessageChunk", text: postCommandChunk };
+      const runCommand = yield { type: "ConfirmRunCommand", command };
+
+      if (runCommand) {
+        const { code, stdout, stderr } = await executeCommand(command);
+        const commandResult = `=== COMMAND RESULT (code ${code}) ===\n${stdout}\n${stderr}\n`;
+        commandResults += commandResult;
+        yield { type: "CommandResult", text: commandResult };
+      }
+
+      yield { type: "MessageChunk", text: postCommand };
+
+      commandBuffer = "";
     }
     yield { type: "MessageChunk", text: "\n" };
     if (commandResults) {
-      const commandResultsMessage = `*** LINUX SYSTEM MESSAGE ***\n${commandResults} `;
+      const commandResultsMessage = `*** LINUX SYSTEM MESSAGE ***\n${commandResults}`;
       commandResults = "";
       yield* this.handleMessageFromChatGPT(
         this.conversation.sendMessage(commandResultsMessage)
