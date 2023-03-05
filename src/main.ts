@@ -27,9 +27,12 @@ while (!geppettoResponse.done) {
         await Deno.stdout.write(textEncoder.encode(responsePart.value.text));
         break;
       case "CommandResult":
-        await Deno.stdout.write(
-          textEncoder.encode(chalk.green(responsePart.value.text))
-        );
+        {
+          const color = responsePart.value.ignored ? chalk.gray : chalk.green;
+          await Deno.stdout.write(
+            textEncoder.encode(color(responsePart.value.text))
+          );
+        }
         break;
       case "ConfirmRunCommand": {
         const response = confirm(chalk.green("\nRun command?"));

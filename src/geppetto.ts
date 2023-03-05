@@ -1,3 +1,5 @@
+import { iterateReader } from "https://deno.land/std@0.122.0/streams/mod.ts";
+
 import {
   type ChatGPT,
   type Conversation,
@@ -5,6 +7,8 @@ import {
 } from "./chat_gtp.ts";
 
 let hints = "";
+
+const decoder = new TextDecoder();
 
 try {
   const hintsFileContent = await Deno.readFile("./workspace/.hints.txt");
@@ -57,13 +61,30 @@ You will now act as Geppetto, a personal assistant AI.
 - When I mention files, internet access, etc., I implicitly refer to the linux system.
 `;
 
-async function executeCommand(
-  command: string,
-  timeout = 60000,
-  maxOutputLength = 1000
-): Promise<{ code: number; stdout: string; stderr: string }> {
-  const decoder = new TextDecoder();
+type OutExecCommandPart = {
+  type: "Out";
+  text: string;
+};
 
+type ErrExecCommandPart = {
+  type: "Err";
+  text: string;
+};
+
+type StatusExecCommandPart = {
+  type: "Status";
+  code: number;
+};
+
+export type ExecCommandPart =
+  | OutExecCommandPart
+  | ErrExecCommandPart
+  | StatusExecCommandPart;
+
+async function* executeCommand(
+  command: string,
+  timeout = 60000
+): AsyncGenerator<ExecCommandPart> {
   const subprocess = Deno.run({
     cmd: ["/bin/bash", "-lc", command],
     stdout: "piped",
@@ -75,26 +96,17 @@ async function executeCommand(
     subprocess.kill();
   }, timeout);
 
-  const [stdout, stderr] = await Promise.all([
-    subprocess.output(),
-    subprocess.stderrOutput(),
-  ]);
-
-  clearTimeout(timer);
+  for await (const chunk of iterateReader(subprocess.stdout)) {
+    const decodedChunk = decoder.decode(chunk);
+    yield { type: "Out", text: decodedChunk };
+  }
+  for await (const chunk of iterateReader(subprocess.stderr)) {
+    const decodedChunk = decoder.decode(chunk);
+    yield { type: "Err", text: decodedChunk };
+  }
   const { code } = await subprocess.status();
-  subprocess.close();
-
-  let stdoutText = decoder.decode(stdout);
-  let stderrText = decoder.decode(stderr);
-
-  stdoutText = stdoutText.slice(0, maxOutputLength);
-  stderrText = stderrText.slice(0, maxOutputLength);
-
-  return {
-    code,
-    stdout: stdoutText,
-    stderr: stderrText,
-  };
+  clearTimeout(timer);
+  yield { type: "Status", code };
 }
 
 const commandRegex = new RegExp(
@@ -112,6 +124,7 @@ type MessageChunkResponsePart = {
 
 type CommandResultResponsePart = {
   type: "CommandResult";
+  ignored: boolean;
   text: string;
 };
 
@@ -169,10 +182,49 @@ export class Geppetto {
       const runCommand = yield { type: "ConfirmRunCommand", command };
 
       if (runCommand) {
-        const { code, stdout, stderr } = await executeCommand(command);
-        const commandResult = `=== COMMAND RESULT (code ${code}) ===\n${stdout}\n${stderr}\n`;
-        commandResults += commandResult;
-        yield { type: "CommandResult", text: commandResult };
+        yield {
+          type: "CommandResult",
+          text: "=== COMMAND RESULT START ===\n",
+          ignored: false,
+        };
+        let outputLength = 0;
+        for await (const outputPart of executeCommand(command)) {
+          switch (outputPart.type) {
+            case "Out":
+            case "Err":
+              {
+                outputLength += outputPart.text.length;
+                const partBelowLimit = outputPart.text.slice(
+                  0,
+                  1000 - outputLength
+                );
+                if (partBelowLimit) {
+                  commandResults += partBelowLimit;
+                  yield {
+                    type: "CommandResult",
+                    text: partBelowLimit,
+                    ignored: false,
+                  };
+                }
+                const partAboveLimit = outputPart.text.slice(
+                  partBelowLimit.length
+                );
+                if (partAboveLimit) {
+                  yield {
+                    type: "CommandResult",
+                    text: partAboveLimit,
+                    ignored: true,
+                  };
+                }
+              }
+              break;
+            case "Status": {
+              const endPart = `\n=== COMMAND RESULT END (code ${outputPart.code}) ===\n`;
+              commandResults += endPart;
+              yield { type: "CommandResult", text: endPart, ignored: false };
+            }
+          }
+        }
       }
 
       yield { type: "MessageChunk", text: postCommand };
