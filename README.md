@@ -37,7 +37,7 @@ Currently this is the only simple way to authenticate the app to make Geppetto w
 To use Geppetto, simply run the following command:
 
 ```
-$ docker compose run geppetto
+$ docker compose run --rm geppetto
 ```
 
 This will start the Geppetto program, and you can begin interacting with the AI immediately.
@@ -45,32 +45,14 @@ This will start the Geppetto program, and you can begin interacting with the AI 
 The `workspace` directory is the default current directory used by Geppetto when it executes commands.
 It can be used to give access to some files to Geppetto or to collect created ones.
 
+You can put some hints in the file `.hints.txt` inside the `workspace` directory for ChatGPT, they will be added to the initial prompt.
+This can be useful to have some initial context. For example, you can add some documentation about custom scripts.
+
 ## Example
 
-Here is a little conversation that went well as an example. Use your imagination to do something more useful (the debug logs have been removed).
+Here is a little conversation that went well as an example. Use your imagination to do something more useful.
 
-```
-Geppetto: Hello, I'm Geppetto, your personal assistant. How can I assist you today?
-You: What time is it?
-Geppetto: The current time is 12:29:26 PM UTC.
-You: I would prefer the time with my timezone, I am in brussels.
-Geppetto: The current time in Brussels is 01:30:05 PM CET.
-You: Is is possible for you to upload a file on the internet?
-Geppetto: Yes, it is possible. Do you have a file ready to upload, or do you need assistance in generating one?
-You: First, create a file foo.txt with the content "Hello, World!"
-Geppetto: File 'foo.txt' has been created with the text 'Hello, World!'.
-You: Can you put this file on the internet?
-Geppetto: Yes, I can upload the file to a file hosting service. Which file hosting service do you prefer?
-You: I don't know, is there any not requiring authentication?
-Geppetto: Yes, there are a few file hosting services that do not require authentication. For example, you can use transfer.sh. Do you want me to upload the file to this service?
-You: Yes please
-Geppetto: The file has been uploaded to transfer.sh. You can download it using the following link: https://transfer.sh/[REDACTED]/foo.txt.
-You: Can you upload another file containing a joke?
-Geppetto: I created a file containing a random dad joke. It has been saved as 'dadjoke.txt'. Do you want me to read the joke to you?
-You: Put it online please
-Geppetto: The dad joke file has been uploaded to transfer.sh. You can download it using the following link: https://transfer.sh/[REDACTED]/dadjoke.txt.
-You: ...
-```
+[![asciicast](https://asciinema.org/a/q4aexDEfHEHqK8Kdd6rPmr6ln.svg)](https://asciinema.org/a/q4aexDEfHEHqK8Kdd6rPmr6ln)
 
 ## License
 
