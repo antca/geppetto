@@ -113,17 +113,31 @@ export class ChatGPT {
       const decodedChunk = decoder.decode(chunk);
       const chunkParts = decodedChunk.trim().split("\n\n");
 
+      let buffer = "";
       for (const chunkPart of chunkParts) {
-        if (!chunkPart.startsWith("data: ")) {
+        buffer += chunkPart;
+        if (!buffer.startsWith("data: ")) {
           continue;
         }
-        const chunkData = chunkPart.trim().replace("data: ", "");
+        const chunkData = buffer.trim().replace("data: ", "");
 
         if (chunkData.trim() === "[DONE]") {
           return;
         }
 
-        const data: unknown = JSON.parse(chunkData);
+        let data: unknown;
+        try {
+          data = JSON.parse(chunkData);
+          buffer = "";
+        } catch (error) {
+          if (
+            error instanceof Error &&
+            error.message.toLowerCase().includes("unterminated string")
+          ) {
+            continue;
+          }
+          throw new Error("Something went wrong while parsing data!");
+        }
 
         assertMessageResponse(data);
 
