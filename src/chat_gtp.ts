@@ -114,6 +114,9 @@ export class ChatGPT {
       const chunkParts = decodedChunk.trim().split("\n\n");
 
       for (const chunkPart of chunkParts) {
+        if (!chunkPart.startsWith("data: ")) {
+          continue;
+        }
         const chunkData = chunkPart.trim().replace("data: ", "");
 
         if (chunkData.trim() === "[DONE]") {
