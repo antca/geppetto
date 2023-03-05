@@ -4,8 +4,6 @@ import {
   type MessagePart,
 } from "./chat_gtp.ts";
 
-const commandKey = crypto.randomUUID();
-
 let hints = "";
 
 try {
@@ -20,16 +18,15 @@ const prompt = `A linux system is now participating the conversation.
 You must include commands in your messages, the linux system will execute them, and provide you the result.
 
 Here is an example how you can execute a command, this syntax is required for all you commands:
-=== COMMAND START ${commandKey} ===
+=== COMMAND START ===
 <your command>
-=== COMMAND END ${commandKey} ===
+=== COMMAND END ===
 
 The linux system will collect all your commands and execute them in the same order as they appear in message.
 It will then create a new message with a special header "*** LINUX SYSTEM MESSAGE ***" containing the result of these commands.
 The output will be truncated if it is more than 1000 characters.
 You can use the "sudo" command.
 The current directory is "/app/workspace/".
-You commands must include this session command key: ${commandKey}
 
 Here is an example of a conversation:
 
@@ -37,9 +34,9 @@ Here is an example of a conversation:
 > What time is it ?
 >
 > ChatGPT:
-> === COMMAND START ${commandKey} ===
+> === COMMAND START ===
 > date +'%r %Z'
-> === COMMAND END ${commandKey} ===
+> === COMMAND END ===
 >
 > Me (as linux system):
 > *** LINUX SYSTEM MESSAGE ***
@@ -106,7 +103,7 @@ async function executeCommand(
 }
 
 const commandRegex = new RegExp(
-  `(=== COMMAND START ${commandKey} ===\\n)((?:.|\\n)*?)(\\n=== COMMAND END ${commandKey} ===)`
+  `(=== COMMAND START ===\\n)((?:.|\\n)*?)(\\n=== COMMAND END ===)`
 );
 
 type NewMessageResponsePart = {
