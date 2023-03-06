@@ -182,9 +182,11 @@ export class Geppetto {
       const runCommand = yield { type: "ConfirmRunCommand", command };
 
       if (runCommand) {
+        const resultHeader = "=== COMMAND RESULT START ===\n";
+        commandResults += resultHeader;
         yield {
           type: "CommandResult",
-          text: "=== COMMAND RESULT START ===\n",
+          text: resultHeader,
           ignored: false,
         };
         let outputLength = 0;
@@ -219,9 +221,13 @@ export class Geppetto {
               }
               break;
             case "Status": {
-              const endPart = `\n=== COMMAND RESULT END (code ${outputPart.code}) ===\n`;
-              commandResults += endPart;
-              yield { type: "CommandResult", text: endPart, ignored: false };
+              const resultTrailer = `\n=== COMMAND RESULT END (code ${outputPart.code}) ===\n`;
+              commandResults += resultTrailer;
+              yield {
+                type: "CommandResult",
+                text: resultTrailer,
+                ignored: false,
+              };
             }
           }
         }
