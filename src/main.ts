@@ -39,6 +39,16 @@ while (!geppettoResponse.done) {
         responsePart = await geppettoResponse.value.next(response);
         continue;
       }
+      case "CommandsResultOverflow": {
+        const response = prompt(
+          chalk.green(
+            `\nResults length exceeds the limit (${responsePart.value.length}/${responsePart.value.defaultValue}), how many characters do you want to send to ChatGPT?`
+          ),
+          responsePart.value.defaultValue.toString()
+        );
+        responsePart = await geppettoResponse.value.next(response);
+        continue;
+      }
     }
     responsePart = await geppettoResponse.value.next();
   }

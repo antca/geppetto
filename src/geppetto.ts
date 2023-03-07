@@ -28,7 +28,7 @@ Here is an example how you can execute a command, use this syntax for all your c
 
 The linux system will collect all the commands and execute them in the same order as they appear in the message.
 It will then create a new message with a special header "*** LINUX SYSTEM MESSAGE ***" containing the result of these commands.
-The output of the command is truncated if it is more than 1000 characters.
+The output of the command is truncated if it is more than MAX_RESULTS_LENGTH characters.
 You can use the "sudo" command.
 The current directory is "/app/workspace/".
 
@@ -132,12 +132,20 @@ type ConfirmRunCommandResponsePart = {
   type: "ConfirmRunCommand";
   command: string;
 };
+type CommandsResultOverflowPart = {
+  type: "CommandsResultOverflow";
+  defaultValue: number;
+  length: number;
+};
 
 export type ResponsePart =
   | NewMessageResponsePart
   | MessageChunkResponsePart
   | CommandResultResponsePart
-  | ConfirmRunCommandResponsePart;
+  | ConfirmRunCommandResponsePart
+  | CommandsResultOverflowPart;
+
+const MAX_RESULTS_LENGTH = 1000;
 
 export class Geppetto {
   private conversation: Conversation;
@@ -150,7 +158,8 @@ export class Geppetto {
     yield { type: "NewMessage" };
 
     let commandBuffer = "";
-    let commandResults = "";
+    const commandResults = [];
+    let totalResultsLength = 0;
     for await (const messagePart of message) {
       commandBuffer += messagePart.text;
 
@@ -183,25 +192,25 @@ export class Geppetto {
 
       if (runCommand) {
         const resultHeader = "=== COMMAND RESULT START ===\n";
-        commandResults += resultHeader;
         yield {
           type: "CommandResult",
           text: resultHeader,
           ignored: false,
         };
-        let outputLength = 0;
+        const commandResultParts = [resultHeader];
+        let commandResultBuffer = "";
         for await (const outputPart of executeCommand(command)) {
           switch (outputPart.type) {
             case "Out":
             case "Err":
               {
-                outputLength += outputPart.text.length;
+                commandResultBuffer += outputPart.text;
+                totalResultsLength += outputPart.text.length;
                 const partBelowLimit = outputPart.text.slice(
                   0,
-                  1000 - outputLength
+                  MAX_RESULTS_LENGTH - totalResultsLength
                 );
                 if (partBelowLimit) {
-                  commandResults += partBelowLimit;
                   yield {
                     type: "CommandResult",
                     text: partBelowLimit,
@@ -222,7 +231,8 @@ export class Geppetto {
               break;
             case "Status": {
               const resultTrailer = `\n=== COMMAND RESULT END (code ${outputPart.code}) ===\n`;
-              commandResults += resultTrailer;
+              commandResultParts.push(commandResultBuffer);
+              commandResultParts.push(resultTrailer);
               yield {
                 type: "CommandResult",
                 text: resultTrailer,
@@ -231,6 +241,7 @@ export class Geppetto {
             }
           }
         }
+        commandResults.push(commandResultParts);
       }
 
       yield { type: "MessageChunk", text: postCommand };
@@ -238,9 +249,26 @@ export class Geppetto {
       commandBuffer = "";
     }
     yield { type: "MessageChunk", text: "\n" };
-    if (commandResults) {
-      const commandResultsMessage = `*** LINUX SYSTEM MESSAGE ***\n${commandResults}`;
-      commandResults = "";
+    if (commandResults.length > 0) {
+      let resultMessageLength = MAX_RESULTS_LENGTH;
+      if (totalResultsLength > MAX_RESULTS_LENGTH) {
+        resultMessageLength = Number(
+          yield {
+            type: "CommandsResultOverflow",
+            defaultValue: MAX_RESULTS_LENGTH,
+            length: totalResultsLength,
+          }
+        );
+      }
+
+      let resultsTosendToChatGPT = "";
+      for (const [header, body, trailer] of commandResults) {
+        const bodyToInclude = body.slice(0, Math.max(resultMessageLength, 0));
+        resultMessageLength -= bodyToInclude.length;
+        resultsTosendToChatGPT += header + bodyToInclude + trailer;
+      }
+
+      const commandResultsMessage = `*** LINUX SYSTEM MESSAGE ***\n${resultsTosendToChatGPT}`;
       yield* this.handleMessageFromChatGPT(
         this.conversation.sendMessage(commandResultsMessage)
       );
