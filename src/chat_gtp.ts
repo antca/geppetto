@@ -109,12 +109,22 @@ export class ChatGPT {
     let partNumber = 0;
     const decoder = new TextDecoder("utf-8");
 
+    let bodyBuffer = new Uint8Array();
+    let parsingError: Error | undefined;
+    let successFullyProcessedChunkParts = 0;
     for await (const chunk of response.body) {
-      const decodedChunk = decoder.decode(chunk);
-      const chunkParts = decodedChunk.trim().split("\n\n");
+      const newBuffer = new Uint8Array(bodyBuffer.length + chunk.length);
+      newBuffer.set(bodyBuffer);
+      newBuffer.set(chunk, bodyBuffer.length);
+      bodyBuffer = newBuffer;
+
+      const decodedChunk = decoder.decode(bodyBuffer);
+      const chunkParts = decodedChunk
+        .trim()
+        .split("\n\n")
+        .slice(successFullyProcessedChunkParts);
 
       let buffer = "";
-      let parsingError: Error | undefined;
       for (const chunkPart of chunkParts) {
         buffer += chunkPart;
         if (!buffer.startsWith("data: ")) {
@@ -131,6 +141,7 @@ export class ChatGPT {
           data = JSON.parse(chunkData);
           buffer = "";
           parsingError = undefined;
+          successFullyProcessedChunkParts++;
         } catch (error) {
           parsingError = error;
           continue;
@@ -160,12 +171,19 @@ export class ChatGPT {
         lastMessage = messagePart;
       }
       if (parsingError) {
-        const error = new Error(
-          "Response chunk processing ended with an unresolved parsing error!"
-        );
-        error.cause = parsingError;
-        throw error;
+        continue;
       }
+
+      bodyBuffer = new Uint8Array();
+      successFullyProcessedChunkParts = 0;
+    }
+
+    if (parsingError) {
+      const error = new Error(
+        "Response chunk processing ended with an unresolved parsing error!"
+      );
+      error.cause = parsingError;
+      throw error;
     }
   }
 }
