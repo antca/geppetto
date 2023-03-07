@@ -114,6 +114,7 @@ export class ChatGPT {
       const chunkParts = decodedChunk.trim().split("\n\n");
 
       let buffer = "";
+      let parsingError: Error | undefined;
       for (const chunkPart of chunkParts) {
         buffer += chunkPart;
         if (!buffer.startsWith("data: ")) {
@@ -129,14 +130,10 @@ export class ChatGPT {
         try {
           data = JSON.parse(chunkData);
           buffer = "";
+          parsingError = undefined;
         } catch (error) {
-          if (
-            error instanceof Error &&
-            error.message.toLowerCase().includes("unterminated string")
-          ) {
-            continue;
-          }
-          throw new Error("Something went wrong while parsing data!");
+          parsingError = error;
+          continue;
         }
 
         assertMessageResponse(data);
@@ -161,6 +158,13 @@ export class ChatGPT {
         };
 
         lastMessage = messagePart;
+      }
+      if (parsingError) {
+        const error = new Error(
+          "Response chunk processing ended with an unresolved parsing error!"
+        );
+        error.cause = parsingError;
+        throw error;
       }
     }
   }
