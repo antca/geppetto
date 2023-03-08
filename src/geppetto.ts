@@ -205,11 +205,11 @@ export class Geppetto {
             case "Err":
               {
                 commandResultBuffer += outputPart.text;
-                totalResultsLength += outputPart.text.length;
                 const partBelowLimit = outputPart.text.slice(
                   0,
                   MAX_RESULTS_LENGTH - totalResultsLength
                 );
+                totalResultsLength += outputPart.text.length;
                 if (partBelowLimit) {
                   yield {
                     type: "CommandResult",
