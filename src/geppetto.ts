@@ -109,8 +109,11 @@ async function* executeCommand(
   yield { type: "Status", code };
 }
 
+const COMMAND_START = "=== COMMAND START ===";
+const COMMAND_END = "=== COMMAND END ===";
+
 const commandRegex = new RegExp(
-  `(=== COMMAND START ===\\n)((?:.|\\n)*?)(\\n=== COMMAND END ===)`
+  `(?:\\n|^)(\\s*)${COMMAND_START}\\n\\1((?:.|\\n)*?)\\n\\1${COMMAND_END}(?:\\n|$)`
 );
 
 type NewMessageResponsePart = {
@@ -165,22 +168,16 @@ export class Geppetto {
 
       const splitResult = commandBuffer.split(commandRegex);
 
-      if (splitResult.length !== 5) {
+      if (splitResult.length !== 4) {
         yield { type: "MessageChunk", text: messagePart.text };
         continue;
       }
 
-      const [
-        _preCommand,
-        _commandHeader,
-        command,
-        commandTrailer,
-        postCommand,
-      ] = splitResult;
+      const [_preCommand, _indent, command, postCommand] = splitResult;
 
       const commandRest = commandBuffer.slice(
         commandBuffer.lastIndexOf(messagePart.text),
-        commandBuffer.lastIndexOf(commandTrailer) + commandTrailer.length
+        commandBuffer.lastIndexOf(COMMAND_END) + COMMAND_END.length
       );
 
       yield {
