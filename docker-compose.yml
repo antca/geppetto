@@ -12,3 +12,4 @@ services:
     stdin_open: true
     environment:
       - CHAT_GPT_COOKIE
+      - OPENAI_API_KEY

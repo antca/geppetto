@@ -28,9 +28,12 @@ $ cd geppetto
 $ docker compose build
 ```
 
-Once the project is built, you must create a file named `.env` at the root of the cloned repository, and include your ChatGPT cookie as the `CHAT_GPT_COOKIE` environment variable.
-You can find this cookie in the browser inspector by looking at the headers of a request and copy the `Cookie` header value. The cookie header value is sent as is to the ChatGPT API.
-Currently this is the only simple way to authenticate the app to make Geppetto work.
+To authenticate the app, you need to create a file named `.env` at the root of the cloned repository to store the authentication credentials. There are two ways to authenticate the app:
+
+1. Using `OPENAI_API_KEY`: You can generate an API key by visiting https://platform.openai.com/account/api-keys.
+2. Using `CHAT_GPT_COOKIE`: You can find it by opening the browser development tools while authenticated on https://chat.openai.com and looking at the headers of a request. Copy the `Cookie` header value, which will be sent as-is to the ChatGPT API.
+
+It's important to keep the `.env` file secure since it contains sensitive information.
 
 ## Usage
 
