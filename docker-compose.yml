@@ -10,3 +10,5 @@ services:
       - .:/app
     tty: true
     stdin_open: true
+    environment:
+      - CHAT_GPT_COOKIE

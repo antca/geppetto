@@ -4,10 +4,12 @@ import { ChatGPT } from "./chat_gtp.ts";
 import { Geppetto } from "./geppetto.ts";
 
 const textEncoder = new TextEncoder();
-const textDecoder = new TextDecoder();
 
-const cookieFileContent = await Deno.readFile(".chat_gpt_cookie.txt");
-const cookie = textDecoder.decode(cookieFileContent);
+const cookie = Deno.env.get("CHAT_GPT_COOKIE");
+
+if (!cookie) {
+  throw new Error("CHAT_GPT_COOKIE env variable is not set!");
+}
 
 const chatGPT = new ChatGPT(cookie);
 const geppetto = new Geppetto(chatGPT);

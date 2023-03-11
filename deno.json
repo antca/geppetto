@@ -1,6 +1,6 @@
 {
   "tasks": {
-    "start": "deno run --allow-net --allow-run --allow-env --allow-read=workspace,.chat_gpt_cookie.txt src/main.ts",
+    "start": "deno run --allow-net --allow-run --allow-env --allow-read=workspace src/main.ts",
     "cache": "deno cache src/main.ts"
   }
 }

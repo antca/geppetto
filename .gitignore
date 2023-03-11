@@ -1,3 +1,4 @@
+.env
 .dir-locals.el
 .chat_gpt_cookie.txt
 workspace/*
