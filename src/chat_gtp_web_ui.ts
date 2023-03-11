@@ -1,4 +1,10 @@
-export class Conversation {
+import {
+  ChatGPTMessagePart,
+  IChatGPT,
+  IChatGPTConversation,
+} from "./chat_gpt.ts";
+
+export class Conversation implements IChatGPTConversation {
   private lastResponseMessageId?: string;
   private conversationId?: string;
   constructor(private readonly chatGPT: ChatGPTWebUI) {}
@@ -37,7 +43,7 @@ function assertValidAccessTokenFetchResponseData(
   throw new Error("Unexpected value for ChatGPT session");
 }
 
-export class ChatGPTWebUI {
+export class ChatGPTWebUI implements IChatGPT {
   private accessToken?: string;
   constructor(private readonly cookie: string) {}
   private async getAccessToken() {
@@ -106,7 +112,6 @@ export class ChatGPTWebUI {
     }
 
     let lastMessage = "";
-    let partNumber = 0;
     const decoder = new TextDecoder("utf-8");
 
     let bodyBuffer = new Uint8Array();
@@ -165,7 +170,6 @@ export class ChatGPTWebUI {
           id: message.id,
           text: messagePart.replace(lastMessage, ""),
           conversationId: conversation_id,
-          partNumber: partNumber++,
         };
 
         lastMessage = messagePart;
@@ -270,11 +274,9 @@ function assertMessageResponse(data: unknown): asserts data is MessageResponse {
   }
 }
 
-export type MessagePart = {
+type MessagePart = ChatGPTMessagePart & {
   id: string;
-  text: string;
   conversationId: string;
-  partNumber: number;
 };
 
 type MessageResponse = {
