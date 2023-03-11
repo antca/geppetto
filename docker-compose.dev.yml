@@ -1,0 +1,8 @@
+version: '3.8'
+services:
+  geppetto:
+    extends:
+      file: docker-compose.yml
+      service: geppetto
+    volumes:
+      - .:/app

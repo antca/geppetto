@@ -17,6 +17,8 @@ WORKDIR /app
 
 RUN deno task cache
 
+RUN chown -R geppetto:geppetto /app
+
 USER geppetto
 
 CMD ["task", "start"]

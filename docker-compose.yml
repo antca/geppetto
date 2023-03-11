@@ -7,7 +7,7 @@ services:
         - UID=${UID_VAR:-1000}
         - GID=${GID_VAR:-1000}
     volumes:
-      - .:/app
+      - ./workspace:/app/workspace
     tty: true
     stdin_open: true
     environment:
