@@ -1,7 +1,7 @@
 export class Conversation {
   private lastResponseMessageId?: string;
   private conversationId?: string;
-  constructor(private readonly chatGPT: ChatGPT) {}
+  constructor(private readonly chatGPT: ChatGPTWebUI) {}
   async *sendMessage(text: string): AsyncGenerator<MessagePart> {
     const gen = this.chatGPT.sendMessage(
       text,
@@ -37,7 +37,7 @@ function assertValidAccessTokenFetchResponseData(
   throw new Error("Unexpected value for ChatGPT session");
 }
 
-export class ChatGPT {
+export class ChatGPTWebUI {
   private accessToken?: string;
   constructor(private readonly cookie: string) {}
   private async getAccessToken() {

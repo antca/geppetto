@@ -1,6 +1,6 @@
 import chalk from "npm:chalk";
 
-import { ChatGPT } from "./chat_gtp.ts";
+import { ChatGPTWebUI } from "./chat_gtp_web_ui.ts";
 import { Geppetto } from "./geppetto.ts";
 
 const textEncoder = new TextEncoder();
@@ -11,7 +11,7 @@ if (!cookie) {
   throw new Error("CHAT_GPT_COOKIE env variable is not set!");
 }
 
-const chatGPT = new ChatGPT(cookie);
+const chatGPT = new ChatGPTWebUI(cookie);
 const geppetto = new Geppetto(chatGPT);
 
 const geppettoGen = geppetto.start();

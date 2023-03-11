@@ -1,10 +1,10 @@
 import { iterateReader } from "https://deno.land/std@0.122.0/streams/mod.ts";
 
 import {
-  type ChatGPT,
+  type ChatGPTWebUI,
   type Conversation,
   type MessagePart,
-} from "./chat_gtp.ts";
+} from "./chat_gtp_web_ui.ts";
 
 let hints = "";
 
@@ -152,7 +152,7 @@ const MAX_RESULTS_LENGTH = 1000;
 
 export class Geppetto {
   private conversation: Conversation;
-  constructor(chatGPT: ChatGPT) {
+  constructor(chatGPT: ChatGPTWebUI) {
     this.conversation = chatGPT.newConversation();
   }
   private async *handleMessageFromChatGPT(
