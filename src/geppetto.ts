@@ -17,7 +17,9 @@ try {
   console.info("No hints file found.");
 }
 
-const prompt = `A linux system is now participating in the conversation.
+const MAX_RESULTS_LENGTH = 1000;
+
+const technicalPrompt = `A linux system is now participating in the conversation.
 
 You can now include commands in your messages, the linux system will execute them and send you the result.
 
@@ -28,37 +30,49 @@ Here is an example how you can execute a command, use this syntax for all your c
 
 The linux system will collect all the commands and execute them in the same order as they appear in the message.
 It will then create a new message with a special header "*** LINUX SYSTEM MESSAGE ***" containing the result of these commands.
-The output of the command is truncated if it is more than MAX_RESULTS_LENGTH characters.
+The output of the command may be truncated if it is more than ${MAX_RESULTS_LENGTH} characters.
 You can use the "sudo" command.
 The current directory is "/app/workspace/".
 
 Here is an example of a conversation:
 
-  Me: What time is it ?
+Assistant: Hello how can I help you?
+---
+User: What time is it?
+---
+Assistant: === COMMAND START ===
+date +'%r %Z'
+=== COMMAND END ===
+---
+User: *** LINUX SYSTEM MESSAGE ***
+=== COMMAND RESULT START ===
+12:00:20 PM UTC
 
-  You: === COMMAND START ===
-  date +'%r %Z'
-  === COMMAND END ===
+=== COMMAND RESULT END (status code: 0) ===
+---
+Assistant: The current time is: 12:00:20 PM UTC
+---
+User: Thank you!
+---
+`;
 
-  Me (as linux system): *** LINUX SYSTEM MESSAGE ***
-  === COMMAND RESULT (code 0) ===
-  12:00:20 PM UTC\n
-
-  You: The current time is: 12:00:20 PM UTC
-
-  Me: Thank you!
-
-
-Additional hints (it's the content of the ".hints.txt" file stored in the current directory):
-${hints}
-
+const taskPrompt = `
 You will now act as Geppetto, a personal assistant AI.
-- Geppetto is here to help me and only me, when communicating with me, he must keep his responses as short as possible.
+- Geppetto is here to help the user and only the user, when communicating with the user, he must keep his responses as short as possible.
 - I already know very well how Geppetto works, no need to explain anything.
-- Most of the responses you give me as Geppetto are generated like you usually do as "ChatGPT, a conversational AI language model developed by OpenAI".
+- Most of the responses you give the user as Geppetto are generated like you usually do as "ChatGPT, a conversational AI language model developed by OpenAI".
 - You have full control on the linux system using COMMAND in your message.
 - I am aware that you have access to a linux shell as administrator.
 - When I mention files, internet access, etc., I implicitly refer to the linux system.
+
+Additional hints (it's the content of the ".hints.txt" file stored in the current directory):
+${hints}
+`;
+
+const prompt = `
+${technicalPrompt}
+
+${taskPrompt}
 `;
 
 type OutExecCommandPart = {
@@ -148,8 +162,6 @@ export type ResponsePart =
   | ConfirmRunCommandResponsePart
   | CommandsResultOverflowPart;
 
-const MAX_RESULTS_LENGTH = 1000;
-
 export class Geppetto {
   private conversation: IChatGPTConversation;
   constructor(chatGPT: IChatGPT) {
@@ -227,7 +239,7 @@ export class Geppetto {
               }
               break;
             case "Status": {
-              const resultTrailer = `\n=== COMMAND RESULT END (code ${outputPart.code}) ===\n`;
+              const resultTrailer = `\n=== COMMAND RESULT END (status code: ${outputPart.code}) ===\n`;
               commandResultParts.push(commandResultBuffer);
               commandResultParts.push(resultTrailer);
               yield {
@@ -274,8 +286,28 @@ export class Geppetto {
   async *start(): AsyncGenerator<AsyncGenerator<ResponsePart>, void, string> {
     let messageGen = this.conversation.sendMessage(prompt);
     while (true) {
-      const response = yield this.handleMessageFromChatGPT(messageGen);
+      let response = yield this.handleMessageFromChatGPT(messageGen);
+      if (response.startsWith("/")) {
+        const [shortcut, ...args] = response.slice(1).split(" ");
+        if (isValidShortcut(shortcut)) {
+          response = shortcuts[shortcut](args.join(""));
+        }
+      }
       messageGen = this.conversation.sendMessage(response);
     }
   }
 }
+
+function isValidShortcut(
+  shortcut: unknown
+): shortcut is keyof typeof shortcuts {
+  return typeof shortcut === "string" && shortcut in shortcuts;
+}
+
+type Shortcuts = { [key: string]: (args: string) => string };
+
+const shortcuts = {
+  prompt(_args: string): string {
+    return technicalPrompt;
+  },
+} satisfies Shortcuts;
