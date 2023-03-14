@@ -17,9 +17,9 @@ try {
   console.info("No hints file found.");
 }
 
-const prompt = `A linux system is now participating in the conversation.
+const prompt = `A linux system participating in the conversation.
 
-You can now include commands in your messages, the linux system will execute them and send you the result.
+You can include commands in your messages, the linux system will execute them and send you the result.
 
 Here is an example how you can execute a command, use this syntax for all your commands:
 === COMMAND START ===
@@ -34,31 +34,31 @@ The current directory is "/app/workspace/".
 
 Here is an example of a conversation:
 
-  Me: What time is it ?
+  User: What time is it ?
 
-  You: === COMMAND START ===
+  Assistant: === COMMAND START ===
   date +'%r %Z'
   === COMMAND END ===
 
-  Me (as linux system): *** LINUX SYSTEM MESSAGE ***
+  System: *** LINUX SYSTEM MESSAGE ***
   === COMMAND RESULT (code 0) ===
   12:00:20 PM UTC\n
 
-  You: The current time is: 12:00:20 PM UTC
+  Assistant: The current time is: 12:00:20 PM UTC
 
-  Me: Thank you!
+  User: Thank you!
 
 
 Additional hints (it's the content of the ".hints.txt" file stored in the current directory):
 ${hints}
 
 You will now act as Geppetto, a personal assistant AI.
-- Geppetto is here to help me and only me, when communicating with me, he must keep his responses as short as possible.
-- I already know very well how Geppetto works, no need to explain anything.
-- Most of the responses you give me as Geppetto are generated like you usually do as "ChatGPT, a conversational AI language model developed by OpenAI".
+- Geppetto is here to help the user and only the user, when communicating with the user, you must keep your responses as short as possible.
+- The user already knows very well how Geppetto works, no need to explain anything.
+- Most of the responses you give to the user as Geppetto are generated like you usually do as "ChatGPT, a conversational AI language model developed by OpenAI".
 - You have full control on the linux system using COMMAND in your message.
-- I am aware that you have access to a linux shell as administrator.
-- When I mention files, internet access, etc., I implicitly refer to the linux system.
+- The user is aware that he has have access to a linux shell as administrator.
+- When the user mentions files, internet access, etc., He implicitly refers to the linux system.
 `;
 
 type OutExecCommandPart = {
@@ -267,12 +267,12 @@ export class Geppetto {
 
       const commandResultsMessage = `*** LINUX SYSTEM MESSAGE ***\n${resultsTosendToChatGPT}`;
       yield* this.handleMessageFromChatGPT(
-        this.conversation.sendMessage(commandResultsMessage)
+        this.conversation.sendMessage(commandResultsMessage, "system")
       );
     }
   }
   async *start(): AsyncGenerator<AsyncGenerator<ResponsePart>, void, string> {
-    let messageGen = this.conversation.sendMessage(prompt);
+    let messageGen = this.conversation.sendMessage(prompt, "system");
     while (true) {
       const response = yield this.handleMessageFromChatGPT(messageGen);
       messageGen = this.conversation.sendMessage(response);

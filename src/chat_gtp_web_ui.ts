@@ -2,15 +2,21 @@ import {
   ChatGPTMessagePart,
   IChatGPT,
   IChatGPTConversation,
+  Role,
+  roles,
 } from "./chat_gpt.ts";
 
 export class Conversation implements IChatGPTConversation {
   private lastResponseMessageId?: string;
   private conversationId?: string;
   constructor(private readonly chatGPT: ChatGPTWebUI) {}
-  async *sendMessage(text: string): AsyncGenerator<MessagePart> {
+  async *sendMessage(
+    text: string,
+    role: Role = "user"
+  ): AsyncGenerator<MessagePart> {
     const gen = this.chatGPT.sendMessage(
       text,
+      role,
       this.conversationId,
       this.lastResponseMessageId
     );
@@ -75,6 +81,7 @@ export class ChatGPTWebUI implements IChatGPT {
   }
   async *sendMessage(
     text: string,
+    role: Role,
     conversationId?: string,
     parentMessageId?: string
   ): AsyncGenerator<MessagePart> {
@@ -84,7 +91,7 @@ export class ChatGPTWebUI implements IChatGPT {
       messages: [
         {
           id: crypto.randomUUID(),
-          role: "user",
+          role,
           content: {
             content_type: "text",
             parts: [text],
@@ -192,7 +199,6 @@ export class ChatGPTWebUI implements IChatGPT {
   }
 }
 
-const roles = ["system", "user", "assistant"] as const;
 const rolesLax: readonly string[] = roles;
 
 function assertMessageResponse(data: unknown): asserts data is MessageResponse {
@@ -282,7 +288,7 @@ type MessagePart = ChatGPTMessagePart & {
 type MessageResponse = {
   message: {
     id: string;
-    author: { role: typeof roles[number] };
+    author: { role: Role };
     content: {
       parts: [string];
     };

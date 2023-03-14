@@ -2,19 +2,23 @@ import {
   ChatGPTMessagePart,
   IChatGPT,
   IChatGPTConversation,
+  Role,
 } from "./chat_gpt.ts";
 
 type Message = {
-  role: typeof roles[number];
+  role: Role;
   content: string;
 };
 
 export class Conversation implements IChatGPTConversation {
   private messages: Message[] = [];
   constructor(private readonly chatGPT: ChatGPTCompletionAPI) {}
-  async *sendMessage(text: string): AsyncGenerator<ChatGPTMessagePart> {
+  async *sendMessage(
+    text: string,
+    role: Role = "user"
+  ): AsyncGenerator<ChatGPTMessagePart> {
     this.messages.push({
-      role: "user",
+      role,
       content: text,
     });
 
@@ -203,7 +207,7 @@ function assertMessageResponse(data: unknown): asserts data is ResponsePart {
 }
 
 type RoleDelta = {
-  role: typeof roles[number];
+  role: Role;
 };
 
 type ContentDelta = {

@@ -1,5 +1,8 @@
 export interface IChatGPTConversation {
-  sendMessage: (text: string) => AsyncGenerator<ChatGPTMessagePart>;
+  sendMessage: (
+    text: string,
+    role?: Role
+  ) => AsyncGenerator<ChatGPTMessagePart>;
 }
 
 export interface IChatGPT {
@@ -9,3 +12,7 @@ export interface IChatGPT {
 export type ChatGPTMessagePart = {
   text: string;
 };
+
+export type Role = typeof roles[number];
+
+export const roles = ["system", "user", "assistant"] as const;
