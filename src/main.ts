@@ -5,6 +5,7 @@ import { ChatGPTCompletionAPI } from "./chat_gpt_completion_api.ts";
 import { Geppetto } from "./geppetto.ts";
 
 const textEncoder = new TextEncoder();
+const textDecoder = new TextDecoder();
 
 function getChatGPTClient() {
   const cookie = Deno.env.get("CHAT_GPT_COOKIE");
@@ -20,6 +21,28 @@ function getChatGPTClient() {
   throw new Error(
     "Neither the CHAT_GPT_COOKIE nor the OPENAI_API_KEY environment variable is set!"
   );
+}
+
+async function readUserInput() {
+  const reader = Deno.stdin.readable.getReader();
+
+  let useInput = "";
+
+  while (!useInput.endsWith("\n")) {
+    const { done, value } = await reader.read();
+    if (done) {
+      break;
+    }
+    useInput += textDecoder.decode(value);
+  }
+
+  reader.releaseLock();
+
+  return useInput.trim();
+}
+
+async function writeOutput(text: string) {
+  return Deno.stdout.write(textEncoder.encode(text));
 }
 
 const chatGPT = getChatGPTClient();
@@ -42,32 +65,35 @@ while (!geppettoResponse.done) {
       case "CommandResult":
         {
           const color = responsePart.value.ignored ? chalk.gray : chalk.green;
-          await Deno.stdout.write(
-            textEncoder.encode(color(responsePart.value.text))
-          );
+          await writeOutput(color(responsePart.value.text));
         }
         break;
       case "ConfirmRunCommand": {
-        const response = confirm(chalk.green("\nRun command?"));
+        await writeOutput(chalk.green("\nRun command? [y/N]: "));
+        const response = (await readUserInput()).toLowerCase() === "y";
         responsePart = await geppettoResponse.value.next(response);
         continue;
       }
       case "CommandsResultOverflow": {
-        const response = prompt(
+        const defaultValue = responsePart.value.defaultValue.toString();
+        await writeOutput(
           chalk.green(
-            `\nResults length exceeds the limit (${responsePart.value.length}/${responsePart.value.defaultValue}), how many characters do you want to send to ChatGPT?`
-          ),
-          responsePart.value.defaultValue.toString()
+            `\nResults length exceeds the limit (${responsePart.value.length}/${responsePart.value.defaultValue}), how many characters do you want to send to ChatGPT? (default: ${defaultValue}): `
+          )
         );
+        let response = await readUserInput();
+        if (response === "") {
+          response = responsePart.value.defaultValue.toString();
+        }
         responsePart = await geppettoResponse.value.next(response);
         continue;
       }
     }
     responsePart = await geppettoResponse.value.next();
   }
-  const userMessage = prompt(chalk.yellow.bold("You:"));
-  if (!userMessage) {
-    throw new Error("No message from prompt!");
-  }
-  geppettoResponse = await geppettoGen.next(userMessage);
+
+  await Deno.stdout.write(textEncoder.encode(chalk.yellow.bold("You: ")));
+
+  const userInput = await readUserInput();
+  geppettoResponse = await geppettoGen.next(userInput);
 }
