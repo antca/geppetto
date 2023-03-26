@@ -1,6 +1,19 @@
-import chalk from "npm:chalk";
-
 import { Geppetto } from "./geppetto.ts";
+
+const format = {
+  boldYellow(text: string) {
+    return `\x1b[33m\x1b[1m${text}\x1b[22m\x1b[39m`;
+  },
+  boldBlue(text: string) {
+    return `\x1b[34m\x1b[1m${text}\x1b[22m\x1b[39m`;
+  },
+  gray(text: string) {
+    return `\x1b[90m${text}\x1b[39m`;
+  },
+  green(text: string) {
+    return `\x1b[32m${text}\x1b[39m`;
+  },
+};
 
 export class GeppettoCLI {
   private readonly textEncoder = new TextEncoder();
@@ -39,7 +52,7 @@ export class GeppettoCLI {
         switch (responsePart.value.type) {
           case "NewMessage":
             await Deno.stdout.write(
-              this.textEncoder.encode(`${chalk.blue.bold("Geppetto:")} `)
+              this.textEncoder.encode(`${format.boldBlue("Geppetto:")} `)
             );
             break;
           case "MessageChunk":
@@ -50,13 +63,13 @@ export class GeppettoCLI {
           case "CommandResult":
             {
               const color = responsePart.value.ignored
-                ? chalk.gray
-                : chalk.green;
+                ? format.gray
+                : format.green;
               await this.writeOutput(color(responsePart.value.text));
             }
             break;
           case "ConfirmRunCommand": {
-            await this.writeOutput(chalk.green("\nRun command? [y/N]: "));
+            await this.writeOutput(format.green("\nRun command? [y/N]: "));
             const response = (await this.readUserInput()).toLowerCase() === "y";
             responsePart = await geppettoResponse.value.next(response);
             continue;
@@ -64,7 +77,7 @@ export class GeppettoCLI {
           case "CommandsResultOverflow": {
             const defaultValue = responsePart.value.defaultValue.toString();
             await this.writeOutput(
-              chalk.green(
+              format.green(
                 `\nResults length exceeds the limit (${responsePart.value.length}/${responsePart.value.defaultValue}), how many characters do you want to send to ChatGPT? (default: ${defaultValue}): `
               )
             );
@@ -80,7 +93,7 @@ export class GeppettoCLI {
       }
 
       await Deno.stdout.write(
-        this.textEncoder.encode(chalk.yellow.bold("You: "))
+        this.textEncoder.encode(format.boldYellow("You: "))
       );
 
       const userInput = await this.readUserInput();
