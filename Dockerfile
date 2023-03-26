@@ -21,4 +21,6 @@ RUN chown -R geppetto:geppetto /app
 
 USER geppetto
 
-CMD ["task", "start"]
+WORKDIR /home/geppetto
+
+CMD ["run", "--allow-net", "--allow-run", "--allow-env", "--allow-read", "/app/src/main.ts"]

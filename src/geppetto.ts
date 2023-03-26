@@ -1,4 +1,5 @@
 import { iterateReader } from "https://deno.land/std@0.122.0/streams/mod.ts";
+import * as path from "https://deno.land/std/path/mod.ts";
 
 import {
   type IChatGPT,
@@ -6,18 +7,21 @@ import {
   type ChatGPTMessagePart,
 } from "./chat_gpt.ts";
 
-let hints = "";
-
 const decoder = new TextDecoder();
 
-try {
-  const hintsFileContent = await Deno.readFile("./workspace/.hints.txt");
-  hints = new TextDecoder().decode(hintsFileContent);
-} catch (_error) {
-  console.info("No hints file found.");
-}
+async function getPrompt(cwd: string) {
+  let hints = "";
 
-const prompt = `A linux system participating in the conversation.
+  const hintsFilePath = path.format({ dir: cwd, name: ".hints.txt" });
+
+  try {
+    const hintsFileContent = await Deno.readFile(hintsFilePath);
+    hints = new TextDecoder().decode(hintsFileContent);
+  } catch (_error) {
+    hints = "<no hint yet>";
+  }
+
+  return `A linux system participating in the conversation.
 
 You can include commands in your messages, the linux system will execute them and send you the result.
 
@@ -30,7 +34,7 @@ The linux system will collect all the commands and execute them in the same orde
 It will then create a new message with a special header "*** LINUX SYSTEM MESSAGE ***" containing the result of these commands.
 The output of the command is truncated if it is more than MAX_RESULTS_LENGTH characters.
 You can use the "sudo" command.
-The current directory is "/app/workspace/".
+The current directory is "${cwd}".
 
 Here is an example of a conversation:
 
@@ -60,6 +64,7 @@ You will now act as Geppetto, a personal assistant AI.
 - The user is aware that he has have access to a linux shell as administrator.
 - When the user mentions files, internet access, etc., He implicitly refers to the linux system.
 `;
+}
 
 type OutExecCommandPart = {
   type: "Out";
@@ -83,13 +88,14 @@ export type ExecCommandPart =
 
 async function* executeCommand(
   command: string,
+  cwd: string,
   timeout = 60000
 ): AsyncGenerator<ExecCommandPart> {
   const subprocess = Deno.run({
     cmd: ["/bin/bash", "-lc", command],
     stdout: "piped",
     stderr: "piped",
-    cwd: "/app/workspace",
+    cwd,
   });
 
   const timer = setTimeout(() => {
@@ -150,9 +156,19 @@ export type ResponsePart =
 
 const MAX_RESULTS_LENGTH = 1000;
 
+type GeppettoOptions = {
+  cwd: string;
+};
+
+const defaultOptions = {
+  cwd: Deno.cwd(),
+};
+
 export class Geppetto {
-  private conversation: IChatGPTConversation;
-  constructor(chatGPT: IChatGPT) {
+  private readonly conversation: IChatGPTConversation;
+  private readonly options: GeppettoOptions;
+  constructor(chatGPT: IChatGPT, options?: Partial<GeppettoOptions>) {
+    this.options = Object.assign({}, defaultOptions, options);
     this.conversation = chatGPT.newConversation();
   }
   private async *handleMessageFromChatGPT(
@@ -196,7 +212,10 @@ export class Geppetto {
         };
         const commandResultParts = [resultHeader];
         let commandResultBuffer = "";
-        for await (const outputPart of executeCommand(command)) {
+        for await (const outputPart of executeCommand(
+          command,
+          this.options.cwd
+        )) {
           switch (outputPart.type) {
             case "Out":
             case "Err":
@@ -272,7 +291,10 @@ export class Geppetto {
     }
   }
   async *start(): AsyncGenerator<AsyncGenerator<ResponsePart>, void, string> {
-    let messageGen = this.conversation.sendMessage(prompt, "system");
+    let messageGen = this.conversation.sendMessage(
+      await getPrompt(this.options.cwd),
+      "system"
+    );
     while (true) {
       const response = yield this.handleMessageFromChatGPT(messageGen);
       messageGen = this.conversation.sendMessage(response);
