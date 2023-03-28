@@ -9,6 +9,17 @@ import {
 
 const decoder = new TextDecoder();
 
+async function run(command: string) {
+  const cmd = Deno.run({
+    cmd: ["/bin/sh", "-lc", command],
+    stdout: "piped",
+  });
+
+  const output = await cmd.output();
+
+  return decoder.decode(output);
+}
+
 async function getPrompt(cwd: string) {
   let hints = "";
 
@@ -21,36 +32,43 @@ async function getPrompt(cwd: string) {
     hints = "<no hint yet>";
   }
 
-  return `A linux system participating in the conversation.
+  return `An operating system agent is participating in the conversation.
 
-You can include commands in your messages, the linux system will execute them and send you the result.
+You can include shell commands to run on the user's computer in your messages, the agent will execute them.
 
-Here is an example how you can execute a command, use this syntax for all your commands:
+Here is an example how you can ask the agent to run a command:
 === COMMAND START ===
-<your command>
+<command>
 === COMMAND END ===
 
-The linux system will collect all the commands and execute them in the same order as they appear in the message.
-It will then create a new message with a special header "*** LINUX SYSTEM MESSAGE ***" containing the result of these commands.
-The output of the command is truncated if it is more than MAX_RESULTS_LENGTH characters.
-You can use the "sudo" command.
-The current directory is "${cwd}".
+The agent can only run shell commands.
+
+For each command, the agent will ask the user for confirmation.
+The user will always review a command before letting the agent execute it.
+The agent will collect all the commands and execute them in the same order as they appear in your message.
+It will then send the results of these commands as a new message in the conversation using the "system" role:
+=== COMMAND RESULT START ===
+<command output>
+=== COMMAND RESULT END (status: <status code>) ===
+
+The output of the command may be truncated or empty, refer to the status code to know if a command succeded.
+The current directory is "$cwd".
+The operating system is: "${await run("uname -a")}"
+The shell is: "${await run("echo $SHELL")}"
 
 Here is an example of a conversation:
 
-  User: What time is it ?
+The participants are: "Assistant" (you) (role: "assistant"), "User" (role: "user"), "Agent" (role: "system")
 
-  Assistant: === COMMAND START ===
-  date +'%r %Z'
-  === COMMAND END ===
-
-  System: *** LINUX SYSTEM MESSAGE ***
-  === COMMAND RESULT (code 0) ===
-  12:00:20 PM UTC\n
-
-  Assistant: The current time is: 12:00:20 PM UTC
-
-  User: Thank you!
+<<User>> What time is it ?
+<<Assistant>> === COMMAND START ===
+date +'%r %Z'
+=== COMMAND END ===
+<<Agent>> === COMMAND RESULT START ===
+12:00:20 PM UTC
+=== COMMAND RESULT END (status: 0) ===
+<<Assistant>> The current time is: 12:00:20 PM UTC
+<<User>> Thank you!
 
 
 Additional hints (it's the content of the ".hints.txt" file stored in the current directory):
@@ -59,10 +77,7 @@ ${hints}
 You will now act as Geppetto, a personal assistant AI.
 - Geppetto is here to help the user and only the user, when communicating with the user, you must keep your responses as short as possible.
 - The user already knows very well how Geppetto works, no need to explain anything.
-- Most of the responses you give to the user as Geppetto are generated like you usually do as "ChatGPT, a conversational AI language model developed by OpenAI".
-- You have full control on the linux system using COMMAND in your message.
-- The user is aware that he has have access to a linux shell as administrator.
-- When the user mentions files, internet access, etc., He implicitly refers to the linux system.
+- Before answering a user request, consider using COMMAND to achieve what the user is asking for.
 `;
 }
 
@@ -92,7 +107,7 @@ async function* executeCommand(
   timeout = 60000
 ): AsyncGenerator<ExecCommandPart> {
   const subprocess = Deno.run({
-    cmd: ["/bin/bash", "-lc", command],
+    cmd: ["/bin/sh", "-lc", command],
     stdout: "piped",
     stderr: "piped",
     cwd,
@@ -246,7 +261,7 @@ export class Geppetto {
               }
               break;
             case "Status": {
-              const resultTrailer = `\n=== COMMAND RESULT END (code ${outputPart.code}) ===\n`;
+              const resultTrailer = `\n=== COMMAND RESULT END (status: ${outputPart.code}) ===\n`;
               commandResultParts.push(commandResultBuffer);
               commandResultParts.push(resultTrailer);
               yield {
@@ -284,9 +299,8 @@ export class Geppetto {
         resultsTosendToChatGPT += header + bodyToInclude + trailer;
       }
 
-      const commandResultsMessage = `*** LINUX SYSTEM MESSAGE ***\n${resultsTosendToChatGPT}`;
       yield* this.handleMessageFromChatGPT(
-        this.conversation.sendMessage(commandResultsMessage, "system")
+        this.conversation.sendMessage(resultsTosendToChatGPT, "system")
       );
     }
   }
