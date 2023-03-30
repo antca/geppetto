@@ -15,6 +15,13 @@ const format = {
   },
 };
 
+function setupSignalTrap(signal: Deno.Signal, handler: () => void) {
+  Deno.addSignalListener(signal, handler);
+  return () => {
+    Deno.removeSignalListener(signal, handler);
+  };
+}
+
 export class GeppettoCLI {
   private readonly textEncoder = new TextEncoder();
   private readonly textDecoder = new TextDecoder();
@@ -36,7 +43,7 @@ export class GeppettoCLI {
 
     reader.releaseLock();
 
-    return useInput.trim();
+    return useInput;
   }
 
   private writeOutput(text: string) {
@@ -47,8 +54,13 @@ export class GeppettoCLI {
     const geppettoGen = this.geppetto.start();
     let geppettoResponse = await geppettoGen.next();
     while (!geppettoResponse.done) {
+      let interrupted = false;
+      const removeInterruptTrap = setupSignalTrap("SIGINT", () => {
+        interrupted = true;
+      });
+
       let responsePart = await geppettoResponse.value.next();
-      while (!responsePart.done) {
+      while (!responsePart.done && !interrupted) {
         switch (responsePart.value.type) {
           case "NewMessage":
             await Deno.stdout.write(
@@ -70,7 +82,8 @@ export class GeppettoCLI {
             break;
           case "ConfirmRunCommand": {
             await this.writeOutput(format.green("\nRun command? [y/N]: "));
-            const response = (await this.readUserInput()).toLowerCase() === "y";
+            const response =
+              (await this.readUserInput()).trim().toLowerCase() === "y";
             responsePart = await geppettoResponse.value.next(response);
             continue;
           }
@@ -82,7 +95,7 @@ export class GeppettoCLI {
               )
             );
             let response = await this.readUserInput();
-            if (response === "") {
+            if (response.trim() === "") {
               response = responsePart.value.defaultValue.toString();
             }
             responsePart = await geppettoResponse.value.next(response);
@@ -92,12 +105,24 @@ export class GeppettoCLI {
         responsePart = await geppettoResponse.value.next();
       }
 
+      removeInterruptTrap();
+      if (interrupted) {
+        await geppettoResponse.value.return(undefined);
+        Deno.stdout.writeSync(this.textEncoder.encode("\n"));
+        interrupted = false;
+      }
+
       await Deno.stdout.write(
         this.textEncoder.encode(format.boldYellow("You: "))
       );
 
       const userInput = await this.readUserInput();
-      geppettoResponse = await geppettoGen.next(userInput);
+
+      if (userInput === "") {
+        return;
+      }
+
+      geppettoResponse = await geppettoGen.next(userInput.trim());
     }
   }
 }
