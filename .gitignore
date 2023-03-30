@@ -3,3 +3,4 @@
 .chat_gpt_cookie.txt
 workspace/*
 !workspace/.gitkeep
+build
