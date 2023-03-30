@@ -103,8 +103,7 @@ export type ExecCommandPart =
 
 async function* executeCommand(
   command: string,
-  cwd: string,
-  timeout = 60000
+  cwd: string
 ): AsyncGenerator<ExecCommandPart> {
   const subprocess = Deno.run({
     cmd: ["/bin/sh", "-lc", command],
@@ -112,10 +111,6 @@ async function* executeCommand(
     stderr: "piped",
     cwd,
   });
-
-  const timer = setTimeout(() => {
-    subprocess.kill();
-  }, timeout);
 
   for await (const chunk of iterateReader(subprocess.stdout)) {
     const decodedChunk = decoder.decode(chunk);
@@ -126,7 +121,6 @@ async function* executeCommand(
     yield { type: "Err", text: decodedChunk };
   }
   const { code } = await subprocess.status();
-  clearTimeout(timer);
   yield { type: "Status", code };
 }
 
