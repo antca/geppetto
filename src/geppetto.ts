@@ -7,11 +7,19 @@ import {
   type ChatGPTMessagePart,
 } from "./chat_gpt.ts";
 
+const shellEnvVariable = Deno.env.get("SHELL");
+
+if (!shellEnvVariable) {
+  throw new Error("SHELL environment variable is not set!");
+}
+
+const shell = shellEnvVariable;
+
 const decoder = new TextDecoder();
 
 async function run(command: string) {
   const cmd = Deno.run({
-    cmd: ["/bin/sh", "-lc", command],
+    cmd: [shell, "-lc", command],
     stdout: "piped",
   });
 
@@ -53,7 +61,7 @@ Once the text stream of the message is finished, the agent will collect all the 
 The output of the command may be truncated or empty, refer to the status code to know if a command succeded.
 The current directory is "$cwd".
 The operating system is: "${await run("uname -a")}"
-The shell is: "${await run("echo $SHELL")}"
+The shell is: "${shell}"
 
 Here is an example of a conversation:
 
@@ -106,7 +114,7 @@ async function* executeCommand(
   cwd: string
 ): AsyncGenerator<ExecCommandPart> {
   const subprocess = Deno.run({
-    cmd: ["/bin/sh", "-lc", command],
+    cmd: [shell, "-lc", command],
     stdout: "piped",
     stderr: "piped",
     cwd,
