@@ -28,6 +28,24 @@ async function run(command: string) {
   return decoder.decode(output);
 }
 
+async function getOSInfo() {
+  return run(`
+    (
+        if [ -e /etc/os-release ]; then
+            . /etc/os-release
+            echo "$NAME $VERSION"
+        elif [ -e /etc/lsb-release ]; then
+            . /etc/lsb-release
+            echo "$DISTRIB_DESCRIPTION"
+        elif [ "$(uname -s)" = "Darwin" ]; then
+            echo "macOS $(sw_vers -productVersion)"
+        else
+            echo "$(uname -s) $(uname -r)"
+        fi
+    ) 2> /dev/null
+`);
+}
+
 async function getPrompt(cwd: string) {
   let hints = "";
 
@@ -60,7 +78,7 @@ Once the text stream of the message is finished, the agent will collect all the 
 
 The output of the command may be truncated or empty, refer to the status code to know if a command succeded.
 The current directory is "$cwd".
-The operating system is: "${await run("uname -a")}"
+The operating system is: "${await getOSInfo()}"
 The shell is: "${shell}"
 
 Here is an example of a conversation:
