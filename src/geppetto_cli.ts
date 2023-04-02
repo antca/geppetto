@@ -63,14 +63,10 @@ export class GeppettoCLI {
       while (!responsePart.done && !interrupted) {
         switch (responsePart.value.type) {
           case "NewMessage":
-            await Deno.stdout.write(
-              this.textEncoder.encode(`${format.boldBlue("Geppetto:")} `)
-            );
+            await this.writeOutput(`${format.boldBlue("Geppetto:")} `);
             break;
           case "MessageChunk":
-            await Deno.stdout.write(
-              this.textEncoder.encode(responsePart.value.text)
-            );
+            await this.writeOutput(responsePart.value.text);
             break;
           case "CommandResult":
             {
@@ -112,9 +108,7 @@ export class GeppettoCLI {
         interrupted = false;
       }
 
-      await Deno.stdout.write(
-        this.textEncoder.encode(format.boldYellow("You: "))
-      );
+      await this.writeOutput(format.boldYellow("You: "));
 
       const userInput = await this.readUserInput();
 
