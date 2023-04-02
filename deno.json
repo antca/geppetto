@@ -1,7 +1,6 @@
 {
   "tasks": {
-    "start": "deno run src/main.ts",
-    "cache": "deno cache src/main.ts",
+    "dev": "deno run --allow-read --allow-run --allow-net --allow-env src/main.ts",
     "build": "deno compile --allow-read --allow-run --allow-net --allow-env --output build/geppetto src/main.ts"
   }
 }

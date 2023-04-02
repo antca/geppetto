@@ -1,26 +1,28 @@
-FROM denoland/deno:1.30.3
+FROM denoland/deno:1.32.3 AS build-env
+
+WORKDIR /app
+COPY . .
+
+RUN deno task build
+
+FROM debian
+
+COPY --from=build-env /app/build/geppetto /usr/local/bin/
 
 ARG UID=1000
 ARG GID=1000
 
-RUN apt update && apt install -y sudo curl pup jq lynx
+RUN apt update && apt install -y sudo curl jq
 
 RUN groupadd -g $GID geppetto && \
     useradd -u $UID -g $GID --create-home -s /bin/bash geppetto && \
-    chown geppetto:geppetto $DENO_DIR && \
     echo '%sudo ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers && \
     usermod -aG sudo geppetto
-
-COPY . /app
-
-WORKDIR /app
-
-RUN deno task cache
-
-RUN chown -R geppetto:geppetto /app
 
 USER geppetto
 
 WORKDIR /home/geppetto
 
-CMD ["run", "--allow-net", "--allow-run", "--allow-env", "--allow-read", "/app/src/main.ts"]
+ENV SHELL=/bin/bash
+
+ENTRYPOINT ["/usr/local/bin/geppetto"]
