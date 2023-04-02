@@ -5,7 +5,7 @@ COPY . .
 
 RUN deno task build
 
-FROM debian
+FROM denoland/deno:1.32.3
 
 COPY --from=build-env /app/build/geppetto /usr/local/bin/
 
@@ -16,6 +16,7 @@ RUN apt update && apt install -y sudo curl jq
 
 RUN groupadd -g $GID geppetto && \
     useradd -u $UID -g $GID --create-home -s /bin/bash geppetto && \
+    chown geppetto:geppetto $DENO_DIR && \
     echo '%sudo ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers && \
     usermod -aG sudo geppetto
 
