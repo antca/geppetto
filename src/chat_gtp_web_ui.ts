@@ -85,16 +85,17 @@ export class ChatGPTWebUI implements IChatGPT {
     conversationId?: string,
     parentMessageId?: string
   ): AsyncGenerator<MessagePart> {
+    const roleHeader = `=== MESSAGE AUTHOR ROLE: ${role} ===\n`;
     const accessToken = await this.getAccessToken();
     const data = {
       action: "next",
       messages: [
         {
           id: crypto.randomUUID(),
-          role,
+          author: { role: "user" },
           content: {
             content_type: "text",
-            parts: [text],
+            parts: [roleHeader + text],
           },
         },
       ],
@@ -114,6 +115,14 @@ export class ChatGPTWebUI implements IChatGPT {
         body: JSON.stringify(data),
       }
     );
+
+    if (!response.ok) {
+      console.error(await response.text());
+      throw new Error(
+        `Request to send message failed: ${response.statusText} (${response.status})`
+      );
+    }
+
     if (!response.body) {
       throw new Error("No data received after sending message");
     }
