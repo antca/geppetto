@@ -29,7 +29,7 @@ async function run(command: string) {
 }
 
 async function getOSInfo() {
-  return run(`
+  const osInfo = await run(`
     (
         if [ -e /etc/os-release ]; then
             . /etc/os-release
@@ -44,6 +44,7 @@ async function getOSInfo() {
         fi
     ) 2> /dev/null
 `);
+  return osInfo.trim();
 }
 
 async function getPrompt(cwd: string) {
@@ -77,7 +78,7 @@ Once the text stream of the message is finished, the agent will collect all the 
 === COMMAND RESULT END (status: <status code>) ===
 
 The output of the command may be truncated or empty, refer to the status code to know if a command succeded.
-The current directory is "$cwd".
+The current directory is "${cwd}".
 The operating system is: "${await getOSInfo()}"
 The shell is: "${shell}"
 
