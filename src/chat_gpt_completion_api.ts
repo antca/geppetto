@@ -1,3 +1,5 @@
+import { z } from "https://deno.land/x/zod@v3.21.4/mod.ts";
+
 import {
   ChatGPTMessagePart,
   IChatGPT,
@@ -102,28 +104,20 @@ export class ChatGPTCompletionAPI implements IChatGPT {
           continue;
         }
 
-        assertMessageResponse(data);
+        const parsedData = ResponsePartSchema.parse(data);
 
         const {
           choices: [choice],
-        } = data;
+        } = parsedData;
 
-        if (isFinishChoice(choice)) {
+        if (choice.finish_reason === "stop") {
           continue;
-        }
-
-        if (!isDeltaChoice(choice)) {
-          throw new Error(`Unknown choice type: ${choice}`);
         }
 
         const { delta } = choice;
 
-        if (isRoleDelta(delta)) {
+        if ("role" in delta) {
           continue;
-        }
-
-        if (!isContentDelta(delta)) {
-          throw new Error(`Unknown delta type: ${delta}`);
         }
 
         yield {
@@ -149,75 +143,26 @@ export class ChatGPTCompletionAPI implements IChatGPT {
 }
 
 const roles = ["system", "user", "assistant"] as const;
-const rolesLax: readonly string[] = roles;
 
-function isRoleDelta(value: unknown): value is RoleDelta {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    "role" in value &&
-    typeof value.role === "string" &&
-    rolesLax.includes(value.role)
-  );
-}
+const RoleSchema = z.enum(roles);
 
-function isContentDelta(value: unknown): value is ContentDelta {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    "content" in value &&
-    typeof value.content === "string"
-  );
-}
+const RoleDeltaSchema = z.object({
+  role: RoleSchema,
+});
 
-function isDeltaChoice(value: unknown): value is DeltaChoice {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    "delta" in value &&
-    typeof value.delta === "object" &&
-    value.delta !== null &&
-    (isRoleDelta(value.delta) || isContentDelta(value.delta))
-  );
-}
+const ContentDeltaSchema = z.object({
+  content: z.string(),
+});
 
-function isFinishChoice(value: unknown): value is FinishChoice {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    "finish_reason" in value &&
-    value.finish_reason === "stop"
-  );
-}
+const DeltaChoiceSchema = z.object({
+  delta: z.union([RoleDeltaSchema, ContentDeltaSchema]),
+  finish_reason: z.literal(null),
+});
 
-function assertMessageResponse(data: unknown): asserts data is ResponsePart {
-  if (!(typeof data === "object" && data !== null)) {
-    throw new Error("Message is invalid!");
-  }
-  if (
-    !(
-      "choices" in data &&
-      Array.isArray(data.choices) &&
-      data.choices.length === 1 &&
-      (isDeltaChoice(data.choices[0]) || isFinishChoice(data.choices[0]))
-    )
-  ) {
-    throw new Error("Message.choice is invalid!");
-  }
-}
+const FinishChoiceSchema = z.object({
+  finish_reason: z.literal("stop"),
+});
 
-type RoleDelta = {
-  role: Role;
-};
-
-type ContentDelta = {
-  content: string;
-};
-
-type DeltaChoice = { delta: RoleDelta | ContentDelta; finish_reason: null };
-
-type FinishChoice = { finish_reason: "stop" };
-
-type ResponsePart = {
-  choices: [DeltaChoice | FinishChoice];
-};
+const ResponsePartSchema = z.object({
+  choices: z.tuple([z.union([DeltaChoiceSchema, FinishChoiceSchema])]),
+});
