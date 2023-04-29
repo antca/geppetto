@@ -31,7 +31,7 @@ $ docker compose build
 To authenticate the app, you need to create a file named `.env` at the root of the cloned repository to store the authentication credentials. There are two ways to authenticate the app:
 
 1. Using `OPENAI_API_KEY`: You can generate an API key by visiting https://platform.openai.com/account/api-keys.
-2. Using `CHAT_GPT_COOKIE`: You can find it by opening the browser development tools while authenticated on https://chat.openai.com and looking at the headers of a request. Copy the `Cookie` header value, which will be sent as-is to the ChatGPT API.
+2. Using `CHAT_GPT_COOKIE` and `CHAT_GPT_USER_AGENT`: To find them, open the browser's developer tools while authenticated on https://chat.openai.com, and examine the headers of a request. Copy the values of the Cookie and User-Agent headers, which will then be sent directly to the ChatGPT API.
 
 It's important to keep the `.env` file secure since it contains sensitive information.
 

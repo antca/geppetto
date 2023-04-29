@@ -5,8 +5,14 @@ import { GeppettoCLI } from "./geppetto_cli.ts";
 
 function getChatGPTClient() {
   const cookie = Deno.env.get("CHAT_GPT_COOKIE");
+  const userAgent = Deno.env.get("CHAT_GPT_USER_AGENT");
   if (cookie) {
-    return new ChatGPTWebUI(cookie);
+    if (!userAgent) {
+      throw new Error(
+        "The CHAT_GPT_USER_AGENT environment variable must be set when using cookie authentication!"
+      );
+    }
+    return new ChatGPTWebUI(cookie, userAgent);
   }
 
   const openAIAPIKey = Deno.env.get("OPENAI_API_KEY");

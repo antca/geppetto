@@ -51,7 +51,7 @@ function assertValidAccessTokenFetchResponseData(
 
 export class ChatGPTWebUI implements IChatGPT {
   private accessToken?: string;
-  constructor(private readonly cookie: string) {}
+  constructor(private readonly cookie: string, private readonly userAgent: string) {}
   private async getAccessToken() {
     if (this.accessToken) {
       return this.accessToken;
@@ -60,6 +60,7 @@ export class ChatGPTWebUI implements IChatGPT {
     const response = await fetch("https://chat.openai.com/api/auth/session", {
       method: "GET",
       headers: {
+        'User-Agent': this.userAgent,
         Cookie: this.cookie,
       },
     });
@@ -108,6 +109,7 @@ export class ChatGPTWebUI implements IChatGPT {
       {
         method: "POST",
         headers: {
+          'User-Agent': this.userAgent,
           Authorization: `Bearer ${accessToken}`,
           Cookie: this.cookie,
           "Content-Type": "application/json",
