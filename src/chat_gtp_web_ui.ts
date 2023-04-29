@@ -1,3 +1,5 @@
+import { z } from "https://deno.land/x/zod@v3.21.4/mod.ts";
+
 import {
   ChatGPTMessagePart,
   IChatGPT,
@@ -170,9 +172,9 @@ export class ChatGPTWebUI implements IChatGPT {
           continue;
         }
 
-        assertMessageResponse(data);
+        const parsedData = MessageResponse.parse(data)
 
-        const { message, error, conversation_id } = data;
+        const { message, error, conversation_id } = parsedData
 
         if (error) {
           throw new Error("Something went wrong when sending message!");
@@ -182,7 +184,9 @@ export class ChatGPTWebUI implements IChatGPT {
           continue;
         }
 
-        const messagePart = message.content.parts[0];
+        const { content } = message
+
+        const messagePart = content.content_type === "code" ? content.text : content.parts[0]
 
         yield {
           id: message.id,
@@ -210,100 +214,31 @@ export class ChatGPTWebUI implements IChatGPT {
   }
 }
 
-const rolesLax: readonly string[] = roles;
-
-function assertMessageResponse(data: unknown): asserts data is MessageResponse {
-  if (!(typeof data === "object" && data !== null)) {
-    throw new Error("MessageResponse is invalid!");
-  }
-  if (
-    !("conversation_id" in data && typeof data.conversation_id === "string")
-  ) {
-    throw new Error("MessageResponse.conversation_id is invalid!");
-  }
-  if (
-    !(
-      "message" in data &&
-      typeof data.message === "object" &&
-      data.message !== null
-    )
-  ) {
-    throw new Error("MessageResponse.message is invalid!");
-  }
-  if (!("id" in data.message && typeof data.message.id === "string")) {
-    throw new Error("MessageResponse.message.id is invalid!");
-  }
-  if (
-    !(
-      "content" in data.message &&
-      typeof data.message.content === "object" &&
-      data.message.content !== null
-    )
-  ) {
-    throw new Error("MessageResponse.message.content is invalid!");
-  }
-  if (
-    !(
-      "content" in data.message &&
-      typeof data.message.content === "object" &&
-      data.message.content !== null
-    )
-  ) {
-    throw new Error("MessageResponse.message.content is invalid!");
-  }
-  if (
-    !(
-      "parts" in data.message.content &&
-      Array.isArray(data.message.content.parts) &&
-      data.message.content.parts.length === 1 &&
-      typeof data.message.content.parts[0] === "string"
-    )
-  ) {
-    throw new Error("MessageResponse.message.content.parts is invalid!");
-  }
-  if (
-    !(
-      "parts" in data.message.content &&
-      Array.isArray(data.message.content.parts) &&
-      data.message.content.parts.length === 1 &&
-      typeof data.message.content.parts[0] === "string"
-    )
-  ) {
-    throw new Error("MessageResponse.message.content.parts is invalid!");
-  }
-  if (
-    !(
-      "author" in data.message &&
-      typeof data.message.author === "object" &&
-      data.message.author !== null
-    )
-  ) {
-    throw new Error("MessageResponse.message.author is invalid!");
-  }
-  if (
-    !(
-      "role" in data.message.author &&
-      typeof data.message.author.role === "string" &&
-      rolesLax.includes(data.message.author.role)
-    )
-  ) {
-    throw new Error("MessageResponse.message.author.role is invalid!");
-  }
-}
-
 type MessagePart = ChatGPTMessagePart & {
   id: string;
   conversationId: string;
 };
 
-type MessageResponse = {
-  message: {
-    id: string;
-    author: { role: Role };
-    content: {
-      parts: [string];
-    };
-  };
-  conversation_id: string;
-  error: unknown;
-};
+const TextContent = z.object({
+  content_type: z.literal("text"),
+  parts: z.array(z.string()),
+});
+
+const CodeContent = z.object({
+  content_type: z.literal("code"),
+  text: z.string(),
+});
+
+const Role = z.enum(roles);
+
+const MessageResponse = z.object({
+  message: z.object({
+    id: z.string(),
+    author: z.object({
+      role: Role,
+    }),
+    content: z.union([TextContent,  CodeContent]),
+  }),
+  conversation_id: z.string(),
+  error: z.unknown(),
+});
