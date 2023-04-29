@@ -87,8 +87,8 @@ export class GeppettoCLI {
             const defaultValue = responsePart.value.defaultValue.toString();
             await this.writeOutput(
               format.green(
-                `\nResults length exceeds the limit (${responsePart.value.length}/${responsePart.value.defaultValue}), how many characters do you want to send to ChatGPT? (default: ${defaultValue}): `
-              )
+                `\nResults length exceeds the limit (${responsePart.value.length}/${responsePart.value.defaultValue}), how many characters do you want to send to ChatGPT? (default: ${defaultValue}): `,
+              ),
             );
             let response = await this.readUserInput();
             if (response.trim() === "") {

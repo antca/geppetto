@@ -14,13 +14,13 @@ export class Conversation implements IChatGPTConversation {
   constructor(private readonly chatGPT: ChatGPTWebUI) {}
   async *sendMessage(
     text: string,
-    role: Role = "user"
+    role: Role = "user",
   ): AsyncGenerator<MessagePart> {
     const gen = this.chatGPT.sendMessage(
       text,
       role,
       this.conversationId,
-      this.lastResponseMessageId
+      this.lastResponseMessageId,
     );
 
     const { value: firstMessage, done } = await gen.next();
@@ -38,7 +38,7 @@ export class Conversation implements IChatGPTConversation {
 }
 
 function assertValidAccessTokenFetchResponseData(
-  value: unknown
+  value: unknown,
 ): asserts value is { accessToken: string } {
   if (
     typeof value === "object" &&
@@ -53,7 +53,10 @@ function assertValidAccessTokenFetchResponseData(
 
 export class ChatGPTWebUI implements IChatGPT {
   private accessToken?: string;
-  constructor(private readonly cookie: string, private readonly userAgent: string) {}
+  constructor(
+    private readonly cookie: string,
+    private readonly userAgent: string,
+  ) {}
   private async getAccessToken() {
     if (this.accessToken) {
       return this.accessToken;
@@ -62,7 +65,7 @@ export class ChatGPTWebUI implements IChatGPT {
     const response = await fetch("https://chat.openai.com/api/auth/session", {
       method: "GET",
       headers: {
-        'User-Agent': this.userAgent,
+        "User-Agent": this.userAgent,
         Cookie: this.cookie,
       },
     });
@@ -86,7 +89,7 @@ export class ChatGPTWebUI implements IChatGPT {
     text: string,
     role: Role,
     conversationId?: string,
-    parentMessageId?: string
+    parentMessageId?: string,
   ): AsyncGenerator<MessagePart> {
     const roleHeader = `=== MESSAGE AUTHOR ROLE: ${role} ===\n`;
     const accessToken = await this.getAccessToken();
@@ -111,19 +114,19 @@ export class ChatGPTWebUI implements IChatGPT {
       {
         method: "POST",
         headers: {
-          'User-Agent': this.userAgent,
+          "User-Agent": this.userAgent,
           Authorization: `Bearer ${accessToken}`,
           Cookie: this.cookie,
           "Content-Type": "application/json",
         },
         body: JSON.stringify(data),
-      }
+      },
     );
 
     if (!response.ok) {
       console.error(await response.text());
       throw new Error(
-        `Request to send message failed: ${response.statusText} (${response.status})`
+        `Request to send message failed: ${response.statusText} (${response.status})`,
       );
     }
 
@@ -172,9 +175,9 @@ export class ChatGPTWebUI implements IChatGPT {
           continue;
         }
 
-        const parsedData = MessageResponse.parse(data)
+        const parsedData = MessageResponse.parse(data);
 
-        const { message, error, conversation_id } = parsedData
+        const { message, error, conversation_id } = parsedData;
 
         if (error) {
           throw new Error("Something went wrong when sending message!");
@@ -184,9 +187,11 @@ export class ChatGPTWebUI implements IChatGPT {
           continue;
         }
 
-        const { content } = message
+        const { content } = message;
 
-        const messagePart = content.content_type === "code" ? content.text : content.parts[0]
+        const messagePart = content.content_type === "code"
+          ? content.text
+          : content.parts[0];
 
         yield {
           id: message.id,
@@ -206,7 +211,7 @@ export class ChatGPTWebUI implements IChatGPT {
 
     if (parsingError) {
       const error = new Error(
-        "Response chunk processing ended with an unresolved parsing error!"
+        "Response chunk processing ended with an unresolved parsing error!",
       );
       error.cause = parsingError;
       throw error;
@@ -237,7 +242,7 @@ const MessageResponse = z.object({
     author: z.object({
       role: Role,
     }),
-    content: z.union([TextContent,  CodeContent]),
+    content: z.union([TextContent, CodeContent]),
   }),
   conversation_id: z.string(),
   error: z.unknown(),

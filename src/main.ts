@@ -9,7 +9,7 @@ function getChatGPTClient() {
   if (cookie) {
     if (!userAgent) {
       throw new Error(
-        "The CHAT_GPT_USER_AGENT environment variable must be set when using cookie authentication!"
+        "The CHAT_GPT_USER_AGENT environment variable must be set when using cookie authentication!",
       );
     }
     return new ChatGPTWebUI(cookie, userAgent);
@@ -21,7 +21,7 @@ function getChatGPTClient() {
   }
 
   throw new Error(
-    "Neither the CHAT_GPT_COOKIE nor the OPENAI_API_KEY environment variable is set!"
+    "Neither the CHAT_GPT_COOKIE nor the OPENAI_API_KEY environment variable is set!",
   );
 }
 

@@ -2,9 +2,9 @@ import { iterateReader } from "https://deno.land/std@0.122.0/streams/mod.ts";
 import * as path from "https://deno.land/std/path/mod.ts";
 
 import {
+  type ChatGPTMessagePart,
   type IChatGPT,
   type IChatGPTConversation,
-  type ChatGPTMessagePart,
 } from "./chat_gpt.ts";
 
 const shellEnvVariable = Deno.env.get("SHELL");
@@ -130,7 +130,7 @@ export type ExecCommandPart =
 
 async function* executeCommand(
   command: string,
-  cwd: string
+  cwd: string,
 ): AsyncGenerator<ExecCommandPart> {
   const subprocess = Deno.run({
     cmd: [shell, "-lc", command],
@@ -155,7 +155,7 @@ const COMMAND_START = "=== COMMAND START ===";
 const COMMAND_END = "=== COMMAND END ===";
 
 const commandRegex = new RegExp(
-  `(?:\\n|^)(\\s*)${COMMAND_START}\\n\\1((?:.|\\n)*?)\\n\\1${COMMAND_END}(?:\\n|$)`
+  `(?:\\n|^)(\\s*)${COMMAND_START}\\n\\1((?:.|\\n)*?)\\n\\1${COMMAND_END}(?:\\n|$)`,
 );
 
 type NewMessageResponsePart = {
@@ -208,7 +208,7 @@ export class Geppetto {
     this.conversation = chatGPT.newConversation();
   }
   private async *handleMessageFromChatGPT(
-    message: AsyncGenerator<ChatGPTMessagePart>
+    message: AsyncGenerator<ChatGPTMessagePart>,
   ): AsyncGenerator<ResponsePart, void, boolean | unknown> {
     yield { type: "NewMessage" };
 
@@ -229,7 +229,7 @@ export class Geppetto {
 
       const commandRest = commandBuffer.slice(
         commandBuffer.lastIndexOf(messagePart.text),
-        commandBuffer.lastIndexOf(COMMAND_END) + COMMAND_END.length
+        commandBuffer.lastIndexOf(COMMAND_END) + COMMAND_END.length,
       );
 
       yield {
@@ -248,10 +248,12 @@ export class Geppetto {
         };
         const commandResultParts = [resultHeader];
         let commandResultBuffer = "";
-        for await (const outputPart of executeCommand(
-          command,
-          this.options.cwd
-        )) {
+        for await (
+          const outputPart of executeCommand(
+            command,
+            this.options.cwd,
+          )
+        ) {
           switch (outputPart.type) {
             case "Out":
             case "Err":
@@ -259,7 +261,7 @@ export class Geppetto {
                 commandResultBuffer += outputPart.text;
                 const partBelowLimit = outputPart.text.slice(
                   0,
-                  MAX_RESULTS_LENGTH - totalResultsLength
+                  MAX_RESULTS_LENGTH - totalResultsLength,
                 );
                 totalResultsLength += outputPart.text.length;
                 if (partBelowLimit) {
@@ -270,7 +272,7 @@ export class Geppetto {
                   };
                 }
                 const partAboveLimit = outputPart.text.slice(
-                  partBelowLimit.length
+                  partBelowLimit.length,
                 );
                 if (partAboveLimit) {
                   yield {
@@ -282,7 +284,8 @@ export class Geppetto {
               }
               break;
             case "Status": {
-              const resultTrailer = `\n=== COMMAND RESULT END (status: ${outputPart.code}) ===\n`;
+              const resultTrailer =
+                `\n=== COMMAND RESULT END (status: ${outputPart.code}) ===\n`;
               commandResultParts.push(commandResultBuffer);
               commandResultParts.push(resultTrailer);
               yield {
@@ -309,7 +312,7 @@ export class Geppetto {
             type: "CommandsResultOverflow",
             defaultValue: MAX_RESULTS_LENGTH,
             length: totalResultsLength,
-          }
+          },
         );
       }
 
@@ -321,14 +324,14 @@ export class Geppetto {
       }
 
       yield* this.handleMessageFromChatGPT(
-        this.conversation.sendMessage(resultsTosendToChatGPT, "system")
+        this.conversation.sendMessage(resultsTosendToChatGPT, "system"),
       );
     }
   }
   async *start(): AsyncGenerator<AsyncGenerator<ResponsePart>, void, string> {
     let messageGen = this.conversation.sendMessage(
       await getPrompt(this.options.cwd),
-      "system"
+      "system",
     );
     while (true) {
       const response = yield this.handleMessageFromChatGPT(messageGen);

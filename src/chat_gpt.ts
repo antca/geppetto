@@ -1,7 +1,7 @@
 export interface IChatGPTConversation {
   sendMessage: (
     text: string,
-    role?: Role
+    role?: Role,
   ) => AsyncGenerator<ChatGPTMessagePart>;
 }
 

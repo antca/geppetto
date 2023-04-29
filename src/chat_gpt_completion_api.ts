@@ -15,7 +15,7 @@ export class Conversation implements IChatGPTConversation {
   constructor(private readonly chatGPT: ChatGPTCompletionAPI) {}
   async *sendMessage(
     text: string,
-    role: Role = "user"
+    role: Role = "user",
   ): AsyncGenerator<ChatGPTMessagePart> {
     this.messages.push({
       role,
@@ -43,7 +43,7 @@ export class ChatGPTCompletionAPI implements IChatGPT {
     return new Conversation(this);
   }
   async *sendConversation(
-    messages: Message[]
+    messages: Message[],
   ): AsyncGenerator<ChatGPTMessagePart> {
     const data = {
       model: "gpt-3.5-turbo",
@@ -140,7 +140,7 @@ export class ChatGPTCompletionAPI implements IChatGPT {
 
     if (parsingError) {
       const error = new Error(
-        "Response chunk processing ended with an unresolved parsing error!"
+        "Response chunk processing ended with an unresolved parsing error!",
       );
       error.cause = parsingError;
       throw error;
