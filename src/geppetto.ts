@@ -1,5 +1,4 @@
-import { iterateReader } from "https://deno.land/std@0.122.0/streams/mod.ts";
-import * as path from "https://deno.land/std/path/mod.ts";
+import * as path from "https://deno.land/std@0.122.0/path/mod.ts";
 
 import {
   type ChatGPTMessagePart,
@@ -18,14 +17,14 @@ const shell = shellEnvVariable;
 const decoder = new TextDecoder();
 
 async function run(command: string) {
-  const cmd = Deno.run({
-    cmd: [shell, "-lc", command],
+  const cmd = new Deno.Command(shell, {
+    args: ["-lc", command],
     stdout: "piped",
   });
 
   const output = await cmd.output();
 
-  return decoder.decode(output);
+  return decoder.decode(output.stdout);
 }
 
 async function getOSInfo() {
@@ -132,22 +131,24 @@ async function* executeCommand(
   command: string,
   cwd: string,
 ): AsyncGenerator<ExecCommandPart> {
-  const subprocess = Deno.run({
-    cmd: [shell, "-lc", command],
+  const cmd = new Deno.Command(shell, {
+    args: ["-lc", command],
     stdout: "piped",
     stderr: "piped",
     cwd,
-  });
+  })
 
-  for await (const chunk of iterateReader(subprocess.stdout)) {
+  const subprocess = cmd.spawn()
+
+  for await (const chunk of subprocess.stdout) {
     const decodedChunk = decoder.decode(chunk);
     yield { type: "Out", text: decodedChunk };
   }
-  for await (const chunk of iterateReader(subprocess.stderr)) {
+  for await (const chunk of subprocess.stderr) {
     const decodedChunk = decoder.decode(chunk);
     yield { type: "Err", text: decodedChunk };
   }
-  const { code } = await subprocess.status();
+  const { code } = await subprocess.status;
   yield { type: "Status", code };
 }
 
