@@ -37,51 +37,24 @@ export class Conversation implements IChatGPTConversation {
   }
 }
 
-function assertValidAccessTokenFetchResponseData(
-  value: unknown,
-): asserts value is { accessToken: string } {
-  if (
-    typeof value === "object" &&
-    value !== null &&
-    "accessToken" in value &&
-    typeof value.accessToken === "string"
-  ) {
-    return;
-  }
-  throw new Error("Unexpected value for ChatGPT session");
+export const AuthHeadersSchema = z.object({
+  Authorization: z.string(),
+  Cookie: z.string(),
+  "User-Agent": z.string(),
+});
+
+export type AuthHeaders = z.infer<typeof AuthHeadersSchema>;
+
+export interface ChatGPTWebUIAuthHeadersProvider {
+  getAuthHeaders: (
+    refresh?: boolean,
+  ) => Promise<AuthHeaders>;
 }
 
 export class ChatGPTWebUI implements IChatGPT {
-  private accessToken?: string;
   constructor(
-    private readonly cookie: string,
-    private readonly userAgent: string,
+    private readonly authHeadersProvider: ChatGPTWebUIAuthHeadersProvider,
   ) {}
-  private async getAccessToken() {
-    if (this.accessToken) {
-      return this.accessToken;
-    }
-
-    const response = await fetch("https://chat.openai.com/api/auth/session", {
-      method: "GET",
-      headers: {
-        "User-Agent": this.userAgent,
-        Cookie: this.cookie,
-      },
-    });
-
-    if (!response.ok) {
-      console.error(await response.text());
-      throw new Error("Something went wrong when fetching access token!");
-    }
-
-    const responseData = await response.json();
-    assertValidAccessTokenFetchResponseData(responseData);
-
-    this.accessToken = responseData.accessToken;
-
-    return this.accessToken;
-  }
   newConversation() {
     return new Conversation(this);
   }
@@ -90,9 +63,9 @@ export class ChatGPTWebUI implements IChatGPT {
     role: Role,
     conversationId?: string,
     parentMessageId?: string,
+    retries = 0,
   ): AsyncGenerator<MessagePart> {
     const roleHeader = `=== MESSAGE AUTHOR ROLE: ${role} ===\n`;
-    const accessToken = await this.getAccessToken();
     const data = {
       action: "next",
       messages: [
@@ -109,24 +82,37 @@ export class ChatGPTWebUI implements IChatGPT {
       parent_message_id: parentMessageId ?? crypto.randomUUID(),
       model: "text-davinci-002-render-sha",
     };
+
+    const authHeaders = await this.authHeadersProvider.getAuthHeaders(
+      retries > 0,
+    );
+
     const response = await fetch(
       "https://chat.openai.com/backend-api/conversation",
       {
         method: "POST",
         headers: {
-          "User-Agent": this.userAgent,
-          Authorization: `Bearer ${accessToken}`,
-          Cookie: this.cookie,
           "Content-Type": "application/json",
+          ...authHeaders,
         },
         body: JSON.stringify(data),
       },
     );
 
     if (!response.ok) {
-      console.error(await response.text());
-      throw new Error(
-        `Request to send message failed: ${response.statusText} (${response.status})`,
+      if (retries > 0) {
+        console.error(await response.text());
+        throw new Error(
+          `Request to send message failed: ${response.statusText} (${response.status})`,
+        );
+      }
+
+      return yield* this.sendMessage(
+        text,
+        role,
+        conversationId,
+        parentMessageId,
+        retries + 1,
       );
     }
 

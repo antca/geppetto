@@ -136,9 +136,9 @@ async function* executeCommand(
     stdout: "piped",
     stderr: "piped",
     cwd,
-  })
+  });
 
-  const subprocess = cmd.spawn()
+  const subprocess = cmd.spawn();
 
   for await (const chunk of subprocess.stdout) {
     const decodedChunk = decoder.decode(chunk);
