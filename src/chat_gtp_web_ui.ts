@@ -81,6 +81,7 @@ export class ChatGPTWebUI implements IChatGPT {
       conversation_id: conversationId,
       parent_message_id: parentMessageId ?? crypto.randomUUID(),
       model: "text-davinci-002-render-sha",
+      history_and_training_disabled: true,
     };
 
     const authHeaders = await this.authHeadersProvider.getAuthHeaders(
