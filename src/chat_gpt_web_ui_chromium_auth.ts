@@ -142,7 +142,7 @@ async function getAuthHeadersUsingChromium(profileStoragePath: string) {
         params: {
           patterns: [
             {
-              urlPattern: "https://chat.openai.com/backend-api/accounts/check",
+              urlPattern: "https://chat.openai.com/backend-api/accounts/check/*",
               resourceType: "XHR",
               requestStage: "Response",
             },
